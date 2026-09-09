@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>กระดานแอด BLISSTECH</title>
+<title>BLISSTECH AdBoard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600&family=Bai+Jamjuree:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="skin.css">
@@ -11,7 +11,7 @@
 </head>
 <body>
 <div class="top">
-  <div class="brand"><div class="mark disp">ก</div><b class="disp">กระดานแอด BLISSTECH</b></div>
+  <div class="brand" id="brand"><div class="mark disp" id="brandMark">B</div><span class="brandtext"><b class="disp" id="brandName">BLISSTECH AdBoard</b><small id="brandTag">Ads Intelligence</small></span></div>
   <span class="chip" id="chipDate">ยังไม่ได้โหลดไฟล์</span>
   <span class="sp"></span>
   <label class="daysel"><span class="small muted">วันที่</span> <select id="daySelect"><option value="">-</option></select></label>
@@ -112,6 +112,6 @@
 window.addEventListener('unhandledrejection', e => { document.getElementById('errlog').textContent += 'rejection: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason) + '\n'; });</script>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script type="module" src="app.js?v=20260909141303"></script>
+<script type="module" src="app.js?v=20260909142229"></script>
 </body>
 </html>

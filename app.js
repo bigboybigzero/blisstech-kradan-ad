@@ -1,6 +1,6 @@
 // app.js — หน้าจอกระดานแอด BLISSTECH (สถานะ, localStorage, เรนเดอร์ทุกหน้า)
-import { analyze, cloneDefaults, mergePlan, diffTotals, campaignsToCsv, MULTI_PRODUCT, LAYER_NAMES, shortCamp, actualMetrics } from './engine.js?v=20260909141303';
-import { mainFunnelSvg, productFunnelSvg } from './funnel.js?v=20260909141303';
+import { analyze, cloneDefaults, mergePlan, diffTotals, campaignsToCsv, MULTI_PRODUCT, LAYER_NAMES, shortCamp, actualMetrics } from './engine.js?v=20260909142229';
+import { mainFunnelSvg, productFunnelSvg } from './funnel.js?v=20260909142229';
 
 // ---------- เก็บข้อมูล ----------
 const KEYS = { settings: 'kad:settings', days: 'kad:days', plan: 'kad:plan', clips: 'kad:clips', manual: 'kad:manual' };
@@ -30,6 +30,30 @@ const thDate = iso => { if (!iso) return '-'; const [y, m, d] = iso.split('-').m
 const roasCls = (r, ok = 4, warn = 1.5) => r === null || r === undefined ? '' : r >= ok ? 'good' : r >= warn ? 'mid' : 'bad';
 let toastT; function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3200); }
 const day = () => state.date ? state.days[state.date] : null;
+
+// ---------- แบรนด์ (ชื่อแอป/โลโก้ เปลี่ยนได้ในหน้าตั้งค่า) ----------
+const DEFAULT_BRAND = { appName: 'BLISSTECH AdBoard', tagline: 'Ads Intelligence', logo: '' };
+function applyBrand() {
+  const S = state.settings, name = S.appName || DEFAULT_BRAND.appName, tag = S.tagline ?? DEFAULT_BRAND.tagline;
+  $('#brandName').textContent = name; $('#brandTag').textContent = tag; $('#brandTag').hidden = !tag;
+  document.title = name;
+  const mark = $('#brandMark');
+  const logo = S.logo || 'logo.png'; // ถ้าไม่ได้อัปโหลด ใช้ logo.png ในโฟลเดอร์แอป (ถ้ามี) ไม่มีก็ใช้ตัวอักษร
+  mark.innerHTML = `<img src="${esc(logo)}" alt="">`;
+  mark.classList.add('has-logo');
+  mark.querySelector('img').onerror = () => { mark.classList.remove('has-logo'); mark.textContent = name.trim().charAt(0).toUpperCase() || 'B'; };
+}
+async function fileToLogoDataUrl(file, size = 128) {
+  if (!/^image\//.test(file.type)) throw new Error('ต้องเป็นไฟล์รูป (PNG/JPG/SVG)');
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('อ่านรูปไม่ได้')); i.src = url; });
+    const c = document.createElement('canvas'); c.width = size; c.height = size; const g = c.getContext('2d');
+    const r = Math.min(size / img.width, size / img.height), w = img.width * r, h = img.height * r;
+    g.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+    return c.toDataURL('image/png');
+  } finally { URL.revokeObjectURL(url); }
+}
 
 // ---------- นำทาง ----------
 function showView(v) {
@@ -112,8 +136,8 @@ function commitPending() {
   state.date = A.date; state.pending = null;
   const q = new URLSearchParams(location.search); // โหมดพัฒนา
   if (q.get('sample')) adviceModule().then(m => { if (m) { rec.advice = m.sampleAdvice(rec, currentPlan()); save(KEYS.days, state.days); renderAdvice(); renderOverview(); } });
-  if (q.get('sheet')) import('./sheet.js?v=20260909141303').then(m => { $('#sheetHost').innerHTML = m.sheetHtml(rec, currentPlan()); }).catch(e => { $('#exportMsg').textContent = e.message; });
-  if (q.get('png')) import('./sheet.js?v=20260909141303').then(m => m.exportPng(rec, currentPlan(), $('#sheetHost'), true)).then(r => { $('#exportMsg').textContent = 'png ok ' + r; }).catch(e => { $('#exportMsg').textContent = 'png fail ' + e.message; });
+  if (q.get('sheet')) import('./sheet.js?v=20260909142229').then(m => { $('#sheetHost').innerHTML = m.sheetHtml(rec, currentPlan()); }).catch(e => { $('#exportMsg').textContent = e.message; });
+  if (q.get('png')) import('./sheet.js?v=20260909142229').then(m => m.exportPng(rec, currentPlan(), $('#sheetHost'), true)).then(r => { $('#exportMsg').textContent = 'png ok ' + r; }).catch(e => { $('#exportMsg').textContent = 'png fail ' + e.message; });
   toast(`วิเคราะห์ ${thDate(A.date)} เสร็จ`);
   renderAll(); showView(autoView || 'overview'); autoView = null;
   if (state.settings.tgAuto && tgReady()) { $('#tgHint').textContent = 'กำลังส่งอัตโนมัติ...'; sendToTelegram(rec, $('#exportMsg')).then(ok => { $('#tgHint').textContent = ok ? `ส่งอัตโนมัติแล้ว ${new Date().toLocaleTimeString('th-TH')}` : 'ส่งอัตโนมัติไม่สำเร็จ ดูข้อความในหน้าส่งออก'; }); }
@@ -124,6 +148,7 @@ function renderAll() {
   const dates = Object.keys(state.days).sort().reverse();
   $('#daySelect').innerHTML = dates.length ? dates.map(d => `<option value="${d}"${d === state.date ? ' selected' : ''}>${thDate(d)}</option>`).join('') : '<option value="">-</option>';
   $('#daysList').innerHTML = dates.length ? dates.map(d => `<div class="dayrow"><span><b>${thDate(d)}</b> <span class="muted small">${esc(state.days[d].fileName)} · ${state.days[d].campaigns.length} แคมเปญ</span></span><span><button class="mini" data-open="${d}">เปิด</button> <button class="mini danger" data-del="${d}">ลบ</button></span></div>`).join('') : 'ยังไม่มี';
+  applyBrand();
   const D = day();
   $('#chipDate').textContent = D ? `ข้อมูลวันที่ ${thDate(D.date)}` : 'ยังไม่ได้โหลดไฟล์';
   renderOverview(); renderFunnel(); renderDecisions(); renderPlan(); renderAdvice(); renderSettings();
@@ -315,7 +340,7 @@ $('#advice').addEventListener('input', e => {
   o[parts[parts.length - 1]] = el.textContent; D.advice.editedAt = new Date().toISOString();
   save(KEYS.days, state.days); if (parts[0] === 'headline') renderOverview();
 });
-async function adviceModule() { try { return await import('./advice.js?v=20260909141303'); } catch (e) { toast('ยังไม่มีส่วนคำแนะนำ (advice.js)'); return null; } }
+async function adviceModule() { try { return await import('./advice.js?v=20260909142229'); } catch (e) { toast('ยังไม่มีส่วนคำแนะนำ (advice.js)'); return null; } }
 $('#btnAdvice').addEventListener('click', async () => {
   const D = day(); if (!D) { toast('โหลดไฟล์ก่อน'); return; }
   if (!state.settings.apiKey) { toast('ใส่ API key ในหน้าตั้งค่าก่อน'); showView('settings'); return; }
@@ -340,7 +365,7 @@ $('#btnCsv').addEventListener('click', () => {
 });
 $('#btnPng').addEventListener('click', async () => {
   const D = day(); if (!D) { toast('โหลดไฟล์ก่อน'); return; }
-  let m; try { m = await import('./sheet.js?v=20260909141303'); } catch { $('#exportMsg').textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return; }
+  let m; try { m = await import('./sheet.js?v=20260909142229'); } catch { $('#exportMsg').textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return; }
   $('#exportMsg').textContent = 'กำลังสร้างรูป...'; $('#btnPng').disabled = true;
   try { const name = await m.exportPng(D, currentPlan(), $('#sheetHost')); $('#exportMsg').textContent = `ดาวน์โหลด ${name} แล้ว`; }
   catch (e) { $('#exportMsg').textContent = 'สร้างรูปไม่ได้: ' + e.message; }
@@ -348,7 +373,7 @@ $('#btnPng').addEventListener('click', async () => {
 });
 
 // ---------- Telegram ----------
-async function tgModule() { try { return await import('./telegram.js?v=20260909141303'); } catch { toast('ยังไม่มีส่วน Telegram (telegram.js)'); return null; } }
+async function tgModule() { try { return await import('./telegram.js?v=20260909142229'); } catch { toast('ยังไม่มีส่วน Telegram (telegram.js)'); return null; } }
 function tgReady() { const S = state.settings; return !!(S.tgToken && S.tgChat); }
 function tgCaption(D) {
   const T = D.totals, A = D.advice;
@@ -360,7 +385,7 @@ function tgCaption(D) {
 async function sendToTelegram(D, statusEl) {
   if (!tgReady()) { statusEl.textContent = 'ตั้งค่า bot token และกลุ่มในหน้าตั้งค่าก่อน'; showView('settings'); return false; }
   const tg = await tgModule(); if (!tg) return false;
-  let sheet; try { sheet = await import('./sheet.js?v=20260909141303'); } catch { statusEl.textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return false; }
+  let sheet; try { sheet = await import('./sheet.js?v=20260909142229'); } catch { statusEl.textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return false; }
   statusEl.textContent = 'กำลังสร้างรูปและส่ง...';
   try {
     const { blob, name } = await sheet.renderPngBlob(D, currentPlan(), $('#sheetHost'), 2);
@@ -388,7 +413,15 @@ const RULE_LABELS = {
 function renderSettings() {
   const S = state.settings;
   $('#settings').innerHTML = `
-    <div class="card"><h3>Claude API</h3>
+    <div class="card"><h3>ชื่อแอปและโลโก้ (แถบหัว)</h3>
+      <div class="row-btns" style="align-items:flex-end;gap:16px">
+        <div class="logo-preview" id="logoPreview">${S.logo ? `<img src="${esc(S.logo)}" alt="">` : `<img src="logo.png" alt="" onerror="this.replaceWith(Object.assign(document.createElement('b'),{textContent:'${esc((S.appName || 'BLISSTECH AdBoard').charAt(0))}',className:'disp'}))">`}</div>
+        <div><label>ชื่อแอป (ภาษาอังกฤษดูเป็นมืออาชีพ เช่น BLISSTECH AdBoard, AdPulse, Ad Command Center)</label><input type="text" id="setAppName" value="${esc(S.appName || 'BLISSTECH AdBoard')}" style="max-width:360px"></div>
+        <div><label>คำโปรยใต้ชื่อ (เว้นว่างได้)</label><input type="text" id="setTagline" value="${esc(S.tagline ?? 'Ads Intelligence')}" style="max-width:260px"></div>
+      </div>
+      <div class="row-btns" style="margin-top:10px"><label class="mini" style="cursor:pointer">อัปโหลดโลโก้ <input type="file" id="setLogo" accept="image/*" hidden></label><button class="mini" id="btnLogoClear">ใช้ค่าเริ่มต้น</button><span class="small muted">รูปสี่เหลี่ยมจัตุรัสพื้นโปร่ง/ขาว จะย่อเป็น 128px เก็บในเครื่องนี้ ถ้าอยากให้ทุกเครื่องเห็นโลโก้เดียวกัน ส่งไฟล์ให้ผู้ดูแลใส่เป็น logo.png ในตัวเว็บ</span></div>
+    </div>
+    <div class="card" style="margin-top:14px"><h3>Claude API</h3>
       <label>API key (เก็บในเบราว์เซอร์เครื่องนี้เท่านั้น ไม่ส่งไปที่อื่นนอกจาก api.anthropic.com)</label>
       <div class="row-btns"><input type="password" id="setKey" value="${esc(S.apiKey)}" placeholder="sk-ant-..." style="max-width:420px"><button class="mini" id="btnTestKey">ทดสอบการเชื่อมต่อ</button><span class="small muted" id="keyMsg"></span></div>
       <label>โมเดล</label><select id="setModel"><option${S.model === 'claude-opus-5' ? ' selected' : ''}>claude-opus-5</option><option${S.model === 'claude-sonnet-5' ? ' selected' : ''}>claude-sonnet-5</option></select>
@@ -412,16 +445,22 @@ function renderSettings() {
     <p class="small muted" style="margin-top:8px">การตั้งค่าใหม่จะมีผลกับไฟล์ที่โหลดครั้งถัดไป วันที่เก็บไว้แล้วยังใช้ผลเดิม · ทะเบียนที่พนักงานเลือกเอง: สินค้า ${Object.keys(state.manual.products).length} แคมเปญ · ขั้นคลิป ${state.clips.length} คลิป</p>`;
   $('#btnSaveSet').addEventListener('click', () => {
     try {
-      const S2 = { ...state.settings, apiKey: $('#setKey').value.trim(), model: $('#setModel').value, rules: { ...state.settings.rules }, tgToken: $('#setTgToken').value.trim(), tgChat: $('#setTgChat').value.trim(), tgAuto: $('#setTgAuto').checked, tgAsFile: $('#setTgAsFile').checked };
+      const S2 = { ...state.settings, apiKey: $('#setKey').value.trim(), model: $('#setModel').value, rules: { ...state.settings.rules }, tgToken: $('#setTgToken').value.trim(), tgChat: $('#setTgChat').value.trim(), tgAuto: $('#setTgAuto').checked, tgAsFile: $('#setTgAsFile').checked, appName: $('#setAppName').value.trim() || DEFAULT_BRAND.appName, tagline: $('#setTagline').value.trim() };
       document.querySelectorAll('[data-rule]').forEach(i => { const v = Number(i.value); if (!isNaN(v)) S2.rules[i.dataset.rule] = v; });
       const pp = JSON.parse($('#setProd').value), sp = JSON.parse($('#setStage').value), lp = JSON.parse($('#setLayer').value);
       for (const p of [...pp, ...sp, ...lp]) new RegExp(p.regex, 'i');
       S2.productPatterns = pp; S2.stagePatterns = sp; S2.layerPatterns = lp;
-      state.settings = S2; save(KEYS.settings, S2); toast('บันทึกการตั้งค่าแล้ว'); renderSettings();
+      state.settings = S2; save(KEYS.settings, S2); toast('บันทึกการตั้งค่าแล้ว'); applyBrand(); renderSettings();
     } catch (e) { toast('รูปแบบ JSON/regex ไม่ถูกต้อง: ' + e.message); }
   });
   $('#btnResetRules').addEventListener('click', () => { const d = cloneDefaults(); state.settings = { ...state.settings, rules: d.rules, productPatterns: d.productPatterns, stagePatterns: d.stagePatterns, layerPatterns: d.layerPatterns }; save(KEYS.settings, state.settings); renderSettings(); toast('คืนค่าเริ่มต้นแล้ว (ยังเก็บ API key ไว้)'); });
   $('#btnClearAll').addEventListener('click', () => { if (!confirm('ลบวันที่เก็บไว้ แผน ทะเบียน และการตั้งค่าทั้งหมด (รวม API key) ในเครื่องนี้?')) return; Object.values(KEYS).forEach(k => localStorage.removeItem(k)); location.reload(); });
+  $('#setLogo').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try { state.settings.logo = await fileToLogoDataUrl(f); save(KEYS.settings, state.settings); applyBrand(); renderSettings(); toast('เปลี่ยนโลโก้แล้ว'); }
+    catch (err) { toast(err.message); }
+  });
+  $('#btnLogoClear').addEventListener('click', () => { state.settings.logo = ''; save(KEYS.settings, state.settings); applyBrand(); renderSettings(); toast('ใช้โลโก้เริ่มต้น'); });
   const tgSaveDraft = () => { state.settings.tgToken = $('#setTgToken').value.trim(); state.settings.tgChat = $('#setTgChat').value.trim(); state.settings.tgAuto = $('#setTgAuto').checked; state.settings.tgAsFile = $('#setTgAsFile').checked; save(KEYS.settings, state.settings); };
   $('#btnTgCheck').addEventListener('click', async () => {
     const t = $('#setTgToken').value.trim(); if (!t) { $('#tgMsg').textContent = 'วาง token ก่อน'; return; }

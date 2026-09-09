@@ -1,6 +1,6 @@
 // sheet.js — สร้างแผ่นสรุป 1 หน้า (โครงเดียวกับ ../รายงาน/สรุปประชุมแอด-7กย69.html) แล้วส่งออกเป็น PNG 2 เท่า
-import { stageCardsHtml } from './funnel.js?v=20260909141303';
-import { shortCamp, actualMetrics } from './engine.js?v=20260909141303';
+import { stageCardsHtml } from './funnel.js?v=20260909142229';
+import { shortCamp, actualMetrics } from './engine.js?v=20260909142229';
 
 const H2I = 'https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.js';
 function loadScript(src) { return new Promise((ok, no) => { if (window.htmlToImage) return ok(); const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => no(new Error('โหลดตัวสร้างรูป (html-to-image) ไม่ได้ ตรวจอินเทอร์เน็ต')); document.head.appendChild(s); }); }
@@ -70,7 +70,7 @@ export function sheetHtml(D, plan) {
   const bossList = (A && A.actions && A.actions.boss && A.actions.boss.length) ? A.actions.boss : ['อนุมัติย้ายงบจากตัวค่าแอดสูงไปตัว ROAS เกิน 6', ...(T.noval ? [`สั่งตรวจ tracking ออเดอร์ที่ไม่มีมูลค่า ${T.noval} รายการ`] : []), 'ตกลงตัววัดต่อชั้น: ชั้น 1 วัด CPM/คนดูจบ ชั้น 2-4 วัด ROAS'];
   const watchList = (A && A.watchNextMeeting && A.watchNextMeeting.length) ? A.watchNextMeeting : [`ค่าแอดรวมต่ำกว่า 18% (วันนี้ ${(T.adpct || 0).toFixed(1)}%)`, 'ความถี่รวมของลูกค้าเก่าไม่เกิน 3 ต่อวัน'];
   return `<style>${CSS}</style><div class="sheet" id="sheet">
-  <header><div class="title"><span class="eyebrow">BLISSTECH · Meta Ads · สรุปประชุม</span><h1>${esc(headline)}</h1><p class="one">${esc(one)}</p></div>
+  <header><div class="title"><span class="eyebrow">${esc((JSON.parse(localStorage.getItem("kad:settings") || "{}").appName) || "BLISSTECH AdBoard")} · Meta Ads · สรุปประชุม</span><h1>${esc(headline)}</h1><p class="one">${esc(one)}</p></div>
     <div class="kpis"><div><span class="v num">${n0(T.spend)}</span><span class="l">ใช้จ่าย (บาท)</span></div>${AM ? `<div class="hi"><span class="v num">${n0(AM.rev)}</span><span class="l">ยอดขายจริง · ค่าแอดจริง ${AM.adpct.toFixed(0)}%</span></div><div><span class="v num">${n0(T.rev)}</span><span class="l">Meta จับได้ (${n0(AM.metaCoverage)}%) · ROAS ${n2(T.roas)}</span></div>` : `<div><span class="v num">${n0(T.rev)}</span><span class="l">ยอดขาย (บาท)</span></div><div><span class="v num">${n2(T.roas)}</span><span class="l">ROAS · ค่าแอด ${(T.adpct || 0).toFixed(0)}%</span></div>`}<div><span class="v num">${AM && AM.orders ? n0(AM.orders) : n0(T.purch)}</span><span class="l">${AM && AM.orders ? 'ออเดอร์จริง' : `ออเดอร์ · ${n0(T.noval)} ไม่มีมูลค่า`}</span></div></div></header>
   <div class="blk"><div class="blk-head"><span class="n">1</span><h2>คนเดินทางมาซื้อผ่าน 4 ด่าน ด่านไหนทำงาน ด่านไหนรั่ว</h2><span class="hint">ตัวเลขคือ ROAS ของด่านนั้นวันนี้</span></div>
     <div class="fun">${stageCardsHtml(D.layers, D.productFunnels)}</div>
