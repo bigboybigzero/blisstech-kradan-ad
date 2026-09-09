@@ -1,6 +1,6 @@
 // advice.js — ขอคำแนะนำจาก Claude จากตัวเลขที่ engine คำนวณแล้ว (Claude ไม่คำนวณเอง)
 // ใช้ @anthropic-ai/sdk ผ่าน ESM CDN โหลดเมื่อต้องใช้เท่านั้น
-import { shortCamp, actualMetrics } from './engine.js?v=20260909143141';
+import { shortCamp, actualMetrics } from './engine.js?v=20260909144512';
 
 const SDK_URL = 'https://esm.sh/@anthropic-ai/sdk';
 let sdkPromise = null;
