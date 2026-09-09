@@ -191,3 +191,37 @@ svg .s-ok{fill:#d6f2e5;stroke:#1b7f5a} svg .s-warn{fill:#fdeccb;stroke:#b8741a} 
 svg .c-ok{fill:#136b4b} svg .c-warn{fill:#9a5f10} svg .c-gap{fill:#a02b21}
 .frow{font-size:13px;color:#1f2f45} .frow .k{color:#4b5b70} .frow .miss{color:#a02b21} .frow .new{color:#0f7cc0}
 .prod .notes{color:#33475e} .prod h4 span{color:#4b5b70}
+
+/* ผังคอนเทนต์ */
+.jcard{background:rgb(var(--card));border:1px solid var(--sky-line);border-radius:16px;padding:16px 18px;margin-bottom:18px;box-shadow:var(--sh-sm)}
+.jtitle{font-family:"Bai Jamjuree";font-size:18px;margin-bottom:12px;color:#0b2540}
+.jflow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto 1fr;gap:10px;align-items:stretch}
+.jstep{border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;border:1.5px solid;background:#fff;min-width:0}
+.jstep.s1{border-color:#5b78a6;background:#f2f5fa} .jstep.s2{border-color:#1a8fd0;background:#eef7fd} .jstep.s3{border-color:#c2781f;background:#fff7ec} .jstep.s4{border-color:#1b7f5a;background:#eefaf4}
+.jstep.gap{border-style:dashed}
+.jhead{display:flex;align-items:flex-start;gap:8px}
+.jhead .jn{font-family:"Bai Jamjuree";font-weight:700;font-size:13px;color:#fff;background:#0b2540;width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.jstep.s1 .jn{background:#5b78a6} .jstep.s2 .jn{background:#1a8fd0} .jstep.s3 .jn{background:#c2781f} .jstep.s4 .jn{background:#1b7f5a}
+.jhead b{font-family:"Bai Jamjuree";font-size:15px;color:#0b2540;display:block} .jhead small{font-size:12px;color:#33475e;display:block}
+.jst{margin-left:auto;font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;white-space:nowrap;flex:none}
+.jst.ok{background:var(--go-bg);color:var(--go)} .jst.warn{background:var(--watch-bg);color:var(--watch)} .jst.gap{background:var(--stop-bg);color:var(--stop)} .jst.none{background:var(--none-bg);color:rgb(var(--muted))}
+.jblock{font-size:13px;color:#1f2f45;display:flex;flex-direction:column;gap:3px}
+.jblock .k{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#4b5b70;font-weight:700}
+.jaud{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+.jaud span{font-size:11.5px;background:#fff;border:1px solid rgb(26 120 190/.25);border-radius:6px;padding:1px 6px;color:#1f2f45;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.jclips{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:5px}
+.jclips li{background:#fff;border:1px solid rgb(26 120 190/.18);border-radius:8px;padding:5px 8px;line-height:1.35}
+.jclips li small{display:block;color:#4b5b70;font-size:11.5px}
+.jclips li.misfit{border-color:var(--watch-line);background:var(--watch-bg)}
+.jblock.move .jclips li{border-color:var(--sky);background:var(--sky-soft)}
+.jgenre{margin:0;padding-left:16px;font-size:12.5px;color:#1f2f45} .jgenre li{margin:1px 0}
+.jblock.rec{background:#fff;border:1.5px solid var(--stop-line);border-radius:10px;padding:8px 10px}
+.jrec{margin:0;padding-left:16px;font-size:12.5px;color:#a02b21;font-weight:600} .jrec li{margin:2px 0}
+.jflow{grid-template-columns:1fr 112px 1fr 112px 1fr 112px 1fr}
+.jarrow{display:flex;flex-direction:column;align-items:center;padding-top:34px;gap:6px}
+.jarrow i{display:block;width:100%;height:14px;position:relative}
+.jarrow i::before{content:"";position:absolute;left:4px;right:10px;top:6px;border-top:2.5px solid #4c6f9c}
+.jarrow i::after{content:"";position:absolute;right:2px;top:1px;border:6px solid transparent;border-left:10px solid #4c6f9c}
+.jarrow span{font-size:11px;line-height:1.3;color:#1f2f45;text-align:center;background:#fff;border:1px solid rgb(26 120 190/.25);border-radius:8px;padding:5px 6px;width:100%}
+.jst{align-self:flex-start;font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;white-space:nowrap;margin-top:-4px}
+@media(max-width:1100px){.jflow{grid-template-columns:1fr}.jarrow{padding-top:0;flex-direction:row;align-items:center}.jarrow i{width:40px;flex:none}.jarrow span{width:auto;text-align:left}}

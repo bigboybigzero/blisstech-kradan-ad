@@ -310,8 +310,9 @@ export function analyze(rows, settings = DEFAULT_SETTINGS, clips = [], manual = 
     .sort((a, b) => b.campaigns.length - a.campaigns.length);
 
   const plan = buildPlan({ data, layers, productFunnels, adsets, campaigns }, S);
+  const journey = buildJourney(ads, adsets, productFunnels.map(p => p.product));
 
-  return { date, totals, campaigns, adsets, ads, places, layers, products, productFunnels, dupClips, dupAdsets, unresolved, plan, rowCount: data.length };
+  return { date, totals, campaigns, adsets, ads, places, layers, products, productFunnels, dupClips, dupAdsets, unresolved, plan, journey, rowCount: data.length };
 }
 
 // ---------- แผนคอนเทนต์และกลุ่มเป้าหมาย (auto) ----------
@@ -361,6 +362,75 @@ export function buildPlan(ctx, S) {
     const seen = new Set(); p[k] = p[k].filter(x => (seen.has(x.name) ? false : seen.add(x.name)));
   }
   return plan;
+}
+
+// ---------- ผังคอนเทนต์ต่อสินค้า (เส้นทางคลิป 4 ขั้น) ----------
+export const JOURNEY_STEPS = [
+  { step: 1, key: 'open', name: 'คลิปเปิด', goal: 'สร้างการรับรู้ หยุดนิ้ว ให้ดูจบ', who: 'คนใหม่ที่ยังไม่รู้จักเรา (หว่าน / ความสนใจ / Lookalike)', layers: [1],
+    genres: ['ตลก-ไวรัล (แนวเจ๊ศรี)', 'รีวิวจากคนใช้จริง / อินฟลูเอนเซอร์', 'ปัญหาที่คนมีทุกวัน แล้วโชว์วิธีแก้'], metric: 'วัดที่ CPM และต้นทุนต่อคนดูจบ 75% ไม่วัด ROAS',
+    next: 'คนที่ดูจบ 75% / กดไลก์คอมเมนต์ / ทักแชท แต่ยังไม่ซื้อ' },
+  { step: 2, key: 'concern', name: 'คลิปคลายกังวล', goal: 'ตอบข้อกังวลที่ทำให้ยังไม่กดซื้อ', who: 'คนที่เห็นคลิปเปิดจบแล้วยังไม่ซื้อ (คนดู 75% / มีส่วนร่วม / ทักแชท 3-7 วัน)', layers: [2],
+    genres: ['ของแท้ vs ของปลอม / เช็คยังไงไม่โดนหลอก', 'คืนเงินได้ใน 7 วัน / รับประกัน', 'เทียบรุ่น เลือกรุ่นไหนดี', 'ใช้กับมือถือ/รถรุ่นไหนได้', 'ทดสอบให้ดูจริง (ชาร์จเร็ว แม่เหล็กแน่น)'], metric: 'ROAS เกิน 4 · CTR เกิน 1.5%',
+    next: 'คนที่ดูคลิปคลายกังวลแล้วยังไม่ซื้อ / ทักแชทแล้วเงียบ' },
+  { step: 3, key: 'offer', name: 'คลิปราคาพิเศษ', goal: 'ให้เหตุผลซื้อวันนี้ด้วยโปรจำกัดเวลา', who: 'คนที่ผ่านคลิปคลายกังวลแล้วยังไม่ซื้อ และคนทักแชทที่ยังไม่ปิด', layers: [3],
+    genres: ['โปรราคาพิเศษ นับถอยหลัง / จำนวนจำกัด', 'ราคาพิเศษเฉพาะคนที่ทักแชท', 'การ์ด 5 คำถามที่ถามบ่อย + ปุ่มทักแชท (คนกลุ่มนี้ไม่ดูคลิปยาว)'], metric: 'ต้นทุนต่อออเดอร์ต่ำกว่า 100 (MINI) / 200 (D5, D1)',
+    next: 'ซื้อแล้ว → ตัดออกจากทุกขั้น 30 วัน แล้วเข้ารายชื่อลูกค้าเก่า' },
+  { step: 4, key: 'repeat', name: 'ลูกค้าเก่า', goal: 'ซื้อเพิ่ม ซื้อซ้ำ ซื้อข้ามสินค้า', who: 'คนที่เคยซื้อ (ตัดคนที่เพิ่งซื้อ 30 วัน)', layers: [4],
+    genres: ['ซื้อเพิ่มให้รถอีกคัน / ซื้อตัวที่สอง', 'ขายข้ามสินค้า (มีที่จับแล้วต้องมีหัวชาร์จ)', 'ของใหม่เปิดตัวให้ลูกค้าเก่าก่อน', 'โปรเฉพาะลูกค้าเก่า'], metric: 'ROAS เกิน 6 · ความถี่รวมไม่เกิน 3/วัน',
+    next: '' },
+];
+const GENRE_KEYS = [
+  ['ของแท้ vs ของปลอม', /ปลอม|หลอก|ของแท้|แฉ|เช็ค/],
+  ['คืนเงิน / รับประกัน', /คืนเงิน|ประกัน|กล้ารับ|ไม่ใช่/],
+  ['เทียบรุ่น', /เทียบ|รุ่นใหม่|รุ่นเก่า|ต่าง|เลือก/],
+  ['ใช้กับรุ่นไหน', /ใช้กับ|รองรับ|รุ่นไหน|iphone|android|type-c|lightning/i],
+  ['ทดสอบให้ดู', /ทดสอบ|ลอง|จริงไหม|แม่เหล็ก/],
+  ['โปร / ราคาพิเศษ', /โปร|ลด|ราคา|9\.9|หั่น|ประหยัด|บาท/],
+  ['คำถามที่ถามบ่อย', /คำถาม|faq|ถามบ่อย/i],
+  ['ตลก-ไวรัล', /เจ้ศรี|เจ๊ศรี|ปากอ้า|ตลก/],
+  ['รีวิว / อินฟู', /ขอฟรี|รีวิว|review|_/],
+  ['ปัญหาที่คนมี', /รำคาญ|เคยไหม|ปัญหา|เลิกทน|ถึงเวลา|มองไม่ชัด/],
+  ['ซื้อเพิ่ม / เลิกย้าย', /หลายคัน|ติดรถ|เลิกย้าย|ตัวที่สอง|มากกว่า/],
+  ['ขายข้าม', /ขายข้าม|ต้องมี|คู่กัน/],
+  ['ลูกค้าเก่า', /ลูกค้าเก่า|RE ซื้อ/],
+];
+export function clipGenres(name) { const out = []; for (const [g, rx] of GENRE_KEYS) if (rx.test(name)) out.push(g); return out; }
+function stepOfStage(stage, layer) {
+  if (stage === 'MOFU') return 2;
+  if (stage === 'โปร') return 3;
+  if (stage === 'BOFU') return layer === 4 ? 4 : 3;
+  if (['TOFU', 'อินฟู', 'ภาพนิ่ง'].includes(stage)) return 1;
+  return layer >= 4 ? 4 : layer === 3 ? 3 : layer === 2 ? 2 : 1; // ไม่มีป้าย: ใช้ชั้นที่ยิงอยู่
+}
+
+/** ผังคอนเทนต์ต่อสินค้า: ใครเห็นคลิปอะไร ขั้นถัดไปควรเป็นอะไร */
+export function buildJourney(ads, adsets, productNames) {
+  return productNames.map(product => {
+    const pads = ads.filter(a => a.product === product && a.spend > 0);
+    const padsets = adsets.filter(a => a.product === product);
+    const steps = JOURNEY_STEPS.map(S => {
+      const audiences = [...new Set(padsets.filter(a => S.layers.includes(a.layer)).map(a => a.name))];
+      const here = pads.filter(a => S.layers.includes(a.layer)).map(a => ({ name: a.name, stage: a.stage || 'ไม่ระบุ', spend: a.spend, purch: a.purch, noval: a.noval, rev: a.rev, roas: a.roas, v95: a.v95, fits: stepOfStage(a.stage, a.layer) === S.step, genres: clipGenres(a.name) }));
+      // คลิปที่ "เข้าขั้นนี้" ตามป้าย แต่กำลังยิงอยู่ที่ชั้นอื่น → ควรย้ายมา
+      const misplaced = pads.filter(a => !S.layers.includes(a.layer) && stepOfStage(a.stage, a.layer) === S.step && S.step !== 1 && a.stage)
+        .map(a => ({ name: a.name, fromLayer: a.layer, stage: a.stage, roas: a.roas, spend: a.spend }));
+      const genresHave = new Set([...here.filter(h => h.fits).flatMap(h => h.genres), ...misplaced.flatMap(m => clipGenres(m.name))]); // นับคลิปที่มีอยู่แต่ยิงผิดชั้นด้วย (แค่ย้าย ไม่ต้องทำใหม่)
+      const rec = [];
+      if (S.step === 2) {
+        for (const g of ['ของแท้ vs ของปลอม', 'คืนเงิน / รับประกัน', 'เทียบรุ่น']) if (!genresHave.has(g)) rec.push(`ทำคลิป "${g}" สำหรับ ${product}`);
+        if (here.length && !here.some(h => h.fits)) rec.unshift(misplaced.length ? `ขั้นนี้ยังไม่มีคลิปคลายกังวล แต่มีอยู่แล้ว ${misplaced.length} คลิปที่ยิงผิดชั้น ย้ายมาก่อน ไม่ต้องทำใหม่` : 'ขั้นนี้ได้แต่คลิปโปร/ปิดการขาย คนยังไม่หายกังวลจึงไม่ซื้อ');
+      }
+      if (S.step === 3) {
+        if (!genresHave.has('โปร / ราคาพิเศษ')) rec.push(`ทำคลิปโปรจำกัดเวลาสำหรับ ${product}`);
+        if (!genresHave.has('คำถามที่ถามบ่อย')) rec.push(`ทำการ์ด "5 คำถามที่ถามบ่อย" ${product} สำหรับคนทักแชท`);
+      }
+      if (S.step === 1 && !here.length) rec.push(`ยังไม่มีคลิปเปิดของ ${product} เลย คนใหม่ไม่รู้จักสินค้านี้`);
+      if (S.step === 4 && here.length && !genresHave.has('ขายข้าม')) rec.push(`ทำคลิปขายข้ามให้ลูกค้า ${product} ซื้อสินค้าอื่นเพิ่ม`);
+      const status = here.length === 0 ? (audiences.length ? 'gap' : 'none') : here.some(h => h.fits) ? (here.every(h => h.fits) ? 'ok' : 'warn') : 'gap';
+      return { ...S, audiences, clips: here.sort((a, b) => b.spend - a.spend), misplaced, recommendations: rec, status };
+    });
+    return { product, steps };
+  });
 }
 
 /** รวมแผน auto ของวันนี้กับรายการที่ทีมพิมพ์เอง (source 'team') และสถานะที่ทีมติ๊กไว้ */

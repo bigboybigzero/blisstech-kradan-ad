@@ -22,6 +22,7 @@
     <button class="opnav-item on" data-view="load"><span><b>โหลดไฟล์</b><small>Creative Reporting .xlsx</small></span></button>
     <button class="opnav-item" data-view="overview"><span><b>ภาพรวม</b><small>KPI เทียบวันก่อน</small></span></button>
     <button class="opnav-item" data-view="funnel"><span><b>กรวย</b><small>4 ชั้น + แยกสินค้า</small></span></button>
+    <button class="opnav-item" data-view="journey"><span><b>ผังคอนเทนต์</b><small>ใครเห็นคลิปอะไร ต่อด้วยอะไร</small></span></button>
     <button class="opnav-item" data-view="decisions"><span><b>คำตัดสิน</b><small>ไปต่อ / ดูภาพรวม / ปิด</small></span></button>
     <button class="opnav-item" data-view="plan"><span><b>แผนคอนเทนต์</b><small>คลิปและกลุ่มต่อชั้น</small></span></button>
     <button class="opnav-item" data-view="advice"><span><b>คำแนะนำ</b><small>จาก Claude</small></span></button>
@@ -68,6 +69,11 @@
       <div id="dupAdsets" class="empty">-</div>
     </section>
 
+    <section data-view="journey" class="view hidden">
+      <h2 class="sec-h">ผังคอนเทนต์แยกสินค้า: ใครเห็นคลิปอะไร แล้วต้องเห็นอะไรต่อ</h2>
+      <div class="hint">อ่านซ้ายไปขวา: คนใหม่เห็น <b>คลิปเปิด</b> → คนที่ดูจบ/ทักแชทแต่ยังไม่ซื้อ เห็น <b>คลิปคลายกังวล</b> → ยังไม่ซื้ออีก เห็น <b>คลิปราคาพิเศษ</b> → ซื้อแล้วเข้ากลุ่ม <b>ลูกค้าเก่า</b> แต่ละขั้นบอกกลุ่มที่เห็น คลิปที่ยิงอยู่จริง คลิปที่อยู่ผิดขั้น และแนวคลิปที่ควรทำต่อ</div>
+      <div id="journey" class="empty">ยังไม่ได้โหลดไฟล์</div>
+    </section>
     <section data-view="decisions" class="view hidden">
       <h2 class="sec-h">คำตัดสินรายแคมเปญ</h2>
       <div class="hint">แอปจัดกลุ่มตามเกณฑ์ในหน้าตั้งค่า เปลี่ยนกลุ่มหรืองบเสนอได้ทุกแถว การแก้จะจำไว้กับวันนั้นและใช้ในไฟล์ส่งออก</div>
@@ -115,6 +121,6 @@
 window.addEventListener('unhandledrejection', e => { document.getElementById('errlog').textContent += 'rejection: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason) + '\n'; });</script>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script type="module" src="app.js?v=20260909144512"></script>
+<script type="module" src="app.js?v=20260909154603"></script>
 </body>
 </html>
