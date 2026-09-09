@@ -1,8 +1,8 @@
 // app.js — หน้าจอกระดานแอด BLISSTECH (สถานะ, localStorage, เรนเดอร์ทุกหน้า)
-import { analyze, cloneDefaults, mergePlan, diffTotals, campaignsToCsv, MULTI_PRODUCT, LAYER_NAMES, shortCamp, actualMetrics, buildJourney } from './engine.js?v=20260909155040';
-import { mainFunnelSvg, productFunnelSvg } from './funnel.js?v=20260909155040';
-import { createApi, loadPlugins } from './plugins.js?v=20260909155040';
-import * as ENGINE from './engine.js?v=20260909155040';
+import { analyze, cloneDefaults, mergePlan, diffTotals, campaignsToCsv, MULTI_PRODUCT, LAYER_NAMES, shortCamp, actualMetrics, buildJourney } from './engine.js?v=20260909161106';
+import { mainFunnelSvg, productFunnelSvg } from './funnel.js?v=20260909161106';
+import { createApi, loadPlugins } from './plugins.js?v=20260909161106';
+import * as ENGINE from './engine.js?v=20260909161106';
 
 // ---------- เก็บข้อมูล ----------
 const KEYS = { settings: 'kad:settings', days: 'kad:days', plan: 'kad:plan', clips: 'kad:clips', manual: 'kad:manual' };
@@ -35,7 +35,7 @@ const AB = createApi({
   setOverride: (date, name, patch) => { const D = state.days[date]; if (!D || !D.campaigns.some(c => c.name === name)) return false; D.overrides[name] = { ...(D.overrides[name] || {}), ...patch }; save(KEYS.days, state.days); renderDecisions(); return true; },
   setActual: (date, actual) => { const D = state.days[date]; if (!D) return false; D.actual = actual && actual.rev > 0 ? { ...actual, updatedAt: new Date().toISOString() } : null; save(KEYS.days, state.days); renderOverview(); return true; },
   addPlanItem: (layer, key, item) => { const layers = currentPlan(), p = layers.find(x => x.layer === layer); if (!p || !p[key]) return false; p[key].push({ ...item, source: 'team' }); savePlanFrom(layers); renderPlan(); renderFunnel(); return true; },
-  renderPngBlob: async (date) => { const D = (date ? state.days[date] : day()); if (!D) throw new Error('ยังไม่ได้โหลดไฟล์'); const m = await import('./sheet.js?v=20260909155040'); return (await m.renderPngBlob(D, currentPlan(), $('#sheetHost'))).blob; },
+  renderPngBlob: async (date) => { const D = (date ? state.days[date] : day()); if (!D) throw new Error('ยังไม่ได้โหลดไฟล์'); const m = await import('./sheet.js?v=20260909161106'); return (await m.renderPngBlob(D, currentPlan(), $('#sheetHost'))).blob; },
   onRegistryChange: () => { if (typeof renderPluginUi === 'function') renderPluginUi(); },
 });
 window.AdBoard = AB;
@@ -162,8 +162,9 @@ function commitPending() {
   state.date = A.date; state.pending = null;
   const q = new URLSearchParams(location.search); // โหมดพัฒนา
   if (q.get('sample')) adviceModule().then(m => { if (m) { rec.advice = m.sampleAdvice(rec, currentPlan()); save(KEYS.days, state.days); renderAdvice(); renderOverview(); } });
-  if (q.get('sheet')) import('./sheet.js?v=20260909155040').then(m => { $('#sheetHost').innerHTML = m.sheetHtml(rec, currentPlan()); }).catch(e => { $('#exportMsg').textContent = e.message; });
-  if (q.get('png')) import('./sheet.js?v=20260909155040').then(m => m.exportPng(rec, currentPlan(), $('#sheetHost'), true)).then(r => { $('#exportMsg').textContent = 'png ok ' + r; }).catch(e => { $('#exportMsg').textContent = 'png fail ' + e.message; });
+  if (q.get('sheet')) import('./sheet.js?v=20260909161106').then(m => { $('#sheetHost').innerHTML = m.sheetHtml(rec, currentPlan()); }).catch(e => { $('#exportMsg').textContent = e.message; });
+  if (q.get('jpng')) journeyPngBlob('').then(r => { $('#journeyMsg').textContent = 'jpng ok ' + Math.round(r.blob.size / 1024) + 'KB'; }).catch(e => { $('#journeyMsg').textContent = 'jpng fail ' + e.message; });
+  if (q.get('png')) import('./sheet.js?v=20260909161106').then(m => m.exportPng(rec, currentPlan(), $('#sheetHost'), true)).then(r => { $('#exportMsg').textContent = 'png ok ' + r; }).catch(e => { $('#exportMsg').textContent = 'png fail ' + e.message; });
   toast(`วิเคราะห์ ${thDate(A.date)} เสร็จ`);
   renderAll(); showView(autoView || 'overview'); autoView = null;
   AB.emit('day:loaded', { date: A.date, fileName });
@@ -289,6 +290,7 @@ function renderJourney() {
   const D = day(); if (!D) { $('#journey').textContent = 'ยังไม่ได้โหลดไฟล์'; return; }
   if (!D.journey && D.ads && D.adsets) { D.journey = buildJourney(D.ads, D.adsets, (D.productFunnels || []).map(p => p.product)); save(KEYS.days, state.days); } // ข้อมูลที่โหลดไว้ก่อนมีฟีเจอร์นี้
   const J = D.journey || [];
+  const pick = $('#journeyPick'), cur = pick.value; pick.innerHTML = '<option value="">ทั้งหมด</option>' + J.map(j => `<option value="${esc(j.product)}"${j.product === cur ? ' selected' : ''}>${esc(j.product)}</option>`).join('');
   const stCls = { ok: 'ok', warn: 'warn', gap: 'gap', none: 'none' };
   const stTxt = { ok: 'ทำงานได้', warn: 'มีคลิปผิดขั้นปนอยู่', gap: 'ยังไม่มีคลิปที่ตรงขั้นนี้', none: 'ยังไม่มีกลุ่มและคลิป' };
   const clipShort = n => String(n).replace(/^\d+\.\d+\.\d+\s*/, '').replace(/\((TOFU|MOFU|BOFU|9\.9\.?|ขอฟรี)\)\s*/i, '').replace(/\s*\(คลิปฟรี\)/, '').trim();
@@ -302,6 +304,39 @@ function renderJourney() {
       ${S.recommendations.length ? `<div class="jblock rec"><span class="k">ต้องทำต่อ</span><ul class="jrec">${S.recommendations.map(r => `<li>${esc(r)}</li>`).join('')}</ul></div>` : ''}
     </div>${S.next ? `<div class="jarrow"><i></i><span>${esc(S.next)}</span></div>` : ''}`).join('')}</div></div>`).join('') || '<div class="empty">ไม่มีสินค้าที่ระบุได้</div>';
 }
+
+// ผัง → รูป
+async function journeyPngBlob(product) {
+  const D = day(); if (!D) throw new Error('โหลดไฟล์ก่อน');
+  if (!window.htmlToImage) await new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.js'; sc.onload = ok; sc.onerror = () => no(new Error('โหลดตัวสร้างรูปไม่ได้ ตรวจอินเทอร์เน็ต')); document.head.appendChild(sc); });
+  // วาดในกล่องนอกจอ ความกว้างคงที่ เพื่อให้รูปเหมือนกันทุกเครื่องและไม่ขึ้นกับหน้าที่เปิดอยู่
+  let stage = document.getElementById('journeyRender');
+  if (!stage) { stage = document.createElement('div'); stage.id = 'journeyRender'; stage.style.cssText = 'position:fixed;left:-30000px;top:0;width:1400px;z-index:-1;pointer-events:none;background:#F2F9FD;padding:24px'; document.body.appendChild(stage); }
+  const cards = [...document.querySelectorAll('#journey .jcard')].filter(c => !product || c.querySelector('.jtitle').textContent === product);
+  if (!cards.length) throw new Error('ไม่มีผังของสินค้านี้');
+  const AMname = state.settings.appName || 'BLISSTECH AdBoard';
+  stage.innerHTML = `<div style="font-family:'Bai Jamjuree',sans-serif;font-weight:600;font-size:22px;color:#0b2540;margin:0 0 4px">ผังคอนเทนต์${product ? ' · ' + esc(product) : ''} · ${thDate(D.date)}</div><div style="font-size:13px;color:#33475e;margin-bottom:14px">${esc(AMname)} · คลิปเปิด → คลิปคลายกังวล → คลิปราคาพิเศษ → ลูกค้าเก่า · เหลือง = คลิปอยู่ผิดขั้น · ฟ้า = ควรย้ายมา · แดง = ต้องทำใหม่</div>` + cards.map(c => c.outerHTML).join('');
+  await new Promise(r => setTimeout(r, 250));
+  const blob = await window.htmlToImage.toBlob(stage, { pixelRatio: 2, backgroundColor: '#F2F9FD' });
+  if (!blob) throw new Error('สร้างรูปไม่สำเร็จ');
+  return { blob, name: `ผังคอนเทนต์-${product ? product.replace(/[\/\s()]+/g, '_') + '-' : ''}${D.date}.png` };
+}
+$('#btnJourneyPng').addEventListener('click', async () => {
+  const msg = $('#journeyMsg'); $('#btnJourneyPng').disabled = true; msg.textContent = 'กำลังสร้างรูป...';
+  try { const { blob, name } = await journeyPngBlob($('#journeyPick').value); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 10000); msg.textContent = `ดาวน์โหลด ${name} แล้ว (${Math.round(blob.size / 1024)} KB)`; }
+  catch (e) { msg.textContent = 'ไม่สำเร็จ: ' + e.message; } finally { $('#btnJourneyPng').disabled = false; }
+});
+$('#btnJourneyTg').addEventListener('click', async () => {
+  const msg = $('#journeyMsg'); const D = day(); if (!D) { msg.textContent = 'โหลดไฟล์ก่อน'; return; }
+  if (!tgReady()) { msg.textContent = 'ตั้งค่า Telegram ในหน้าตั้งค่าก่อน'; showView('settings'); return; }
+  $('#btnJourneyTg').disabled = true; msg.textContent = 'กำลังสร้างรูปและส่ง...';
+  try {
+    const product = $('#journeyPick').value; const tg = await tgModule(); const { blob, name } = await journeyPngBlob(product);
+    const caption = `ผังคอนเทนต์${product ? ' ' + product : ''} · ${thDate(D.date)}\nเหลือง = คลิปอยู่ผิดขั้น · ฟ้า = ควรย้ายมา · แดง = ต้องทำใหม่\n${location.origin}${location.pathname}#/journey`;
+    const id = await tg.sendDocument(state.settings.tgToken, state.settings.tgChat, blob, name, caption); // ส่งเป็นไฟล์ เพราะรูปสูง ความละเอียดเต็ม
+    msg.textContent = `ส่งเข้ากลุ่มแล้ว (ข้อความ #${id})`; toast('ส่งผังเข้า Telegram แล้ว'); AB.emit('export:sent', { target: 'telegram-journey', date: D.date, messageId: id });
+  } catch (e) { msg.textContent = 'ไม่สำเร็จ: ' + e.message; } finally { $('#btnJourneyTg').disabled = false; }
+});
 
 // ---------- คำตัดสิน ----------
 function effective(c, D) { const o = (D.overrides || {})[c.name] || {}; return { group: o.group || c.group, budgetNext: o.budgetNext !== undefined ? o.budgetNext : c.budgetNext, edited: !!(o.group || o.budgetNext !== undefined) }; }
@@ -386,7 +421,7 @@ $('#advice').addEventListener('input', e => {
   o[parts[parts.length - 1]] = el.textContent; D.advice.editedAt = new Date().toISOString();
   save(KEYS.days, state.days); if (parts[0] === 'headline') renderOverview();
 });
-async function adviceModule() { try { return await import('./advice.js?v=20260909155040'); } catch (e) { toast('ยังไม่มีส่วนคำแนะนำ (advice.js)'); return null; } }
+async function adviceModule() { try { return await import('./advice.js?v=20260909161106'); } catch (e) { toast('ยังไม่มีส่วนคำแนะนำ (advice.js)'); return null; } }
 $('#btnAdvice').addEventListener('click', async () => {
   const D = day(); if (!D) { toast('โหลดไฟล์ก่อน'); return; }
   if (!state.settings.apiKey) { toast('ใส่ API key ในหน้าตั้งค่าก่อน'); showView('settings'); return; }
@@ -411,7 +446,7 @@ $('#btnCsv').addEventListener('click', () => {
 });
 $('#btnPng').addEventListener('click', async () => {
   const D = day(); if (!D) { toast('โหลดไฟล์ก่อน'); return; }
-  let m; try { m = await import('./sheet.js?v=20260909155040'); } catch { $('#exportMsg').textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return; }
+  let m; try { m = await import('./sheet.js?v=20260909161106'); } catch { $('#exportMsg').textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return; }
   $('#exportMsg').textContent = 'กำลังสร้างรูป...'; $('#btnPng').disabled = true;
   try { const name = await m.exportPng(D, currentPlan(), $('#sheetHost')); $('#exportMsg').textContent = `ดาวน์โหลด ${name} แล้ว`; }
   catch (e) { $('#exportMsg').textContent = 'สร้างรูปไม่ได้: ' + e.message; }
@@ -419,7 +454,7 @@ $('#btnPng').addEventListener('click', async () => {
 });
 
 // ---------- Telegram ----------
-async function tgModule() { try { return await import('./telegram.js?v=20260909155040'); } catch { toast('ยังไม่มีส่วน Telegram (telegram.js)'); return null; } }
+async function tgModule() { try { return await import('./telegram.js?v=20260909161106'); } catch { toast('ยังไม่มีส่วน Telegram (telegram.js)'); return null; } }
 function tgReady() { const S = state.settings; return !!(S.tgToken && S.tgChat); }
 function tgCaption(D) {
   const T = D.totals, A = D.advice;
@@ -431,7 +466,7 @@ function tgCaption(D) {
 async function sendToTelegram(D, statusEl) {
   if (!tgReady()) { statusEl.textContent = 'ตั้งค่า bot token และกลุ่มในหน้าตั้งค่าก่อน'; showView('settings'); return false; }
   const tg = await tgModule(); if (!tg) return false;
-  let sheet; try { sheet = await import('./sheet.js?v=20260909155040'); } catch { statusEl.textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return false; }
+  let sheet; try { sheet = await import('./sheet.js?v=20260909161106'); } catch { statusEl.textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return false; }
   statusEl.textContent = 'กำลังสร้างรูปและส่ง...';
   try {
     const { blob, name } = await sheet.renderPngBlob(D, currentPlan(), $('#sheetHost'), 2);

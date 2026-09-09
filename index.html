@@ -72,6 +72,12 @@
     <section data-view="journey" class="view hidden">
       <h2 class="sec-h">ผังคอนเทนต์แยกสินค้า: ใครเห็นคลิปอะไร แล้วต้องเห็นอะไรต่อ</h2>
       <div class="hint">อ่านซ้ายไปขวา: คนใหม่เห็น <b>คลิปเปิด</b> → คนที่ดูจบ/ทักแชทแต่ยังไม่ซื้อ เห็น <b>คลิปคลายกังวล</b> → ยังไม่ซื้ออีก เห็น <b>คลิปราคาพิเศษ</b> → ซื้อแล้วเข้ากลุ่ม <b>ลูกค้าเก่า</b> แต่ละขั้นบอกกลุ่มที่เห็น คลิปที่ยิงอยู่จริง คลิปที่อยู่ผิดขั้น และแนวคลิปที่ควรทำต่อ</div>
+      <div class="row-btns" id="journeyTools">
+        <label class="small muted">สินค้า <select id="journeyPick"><option value="">ทั้งหมด</option></select></label>
+        <button class="btn" id="btnJourneyPng">ดาวน์โหลดรูปผัง</button>
+        <button class="btn" id="btnJourneyTg">ส่งผังเข้า Telegram</button>
+        <span class="small muted" id="journeyMsg"></span>
+      </div>
       <div id="journey" class="empty">ยังไม่ได้โหลดไฟล์</div>
     </section>
     <section data-view="decisions" class="view hidden">
@@ -121,6 +127,6 @@
 window.addEventListener('unhandledrejection', e => { document.getElementById('errlog').textContent += 'rejection: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason) + '\n'; });</script>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script type="module" src="app.js?v=20260909155040"></script>
+<script type="module" src="app.js?v=20260909161106"></script>
 </body>
 </html>
