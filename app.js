@@ -1,6 +1,8 @@
 // app.js — หน้าจอกระดานแอด BLISSTECH (สถานะ, localStorage, เรนเดอร์ทุกหน้า)
-import { analyze, cloneDefaults, mergePlan, diffTotals, campaignsToCsv, MULTI_PRODUCT, LAYER_NAMES, shortCamp, actualMetrics } from './engine.js?v=20260909142229';
-import { mainFunnelSvg, productFunnelSvg } from './funnel.js?v=20260909142229';
+import { analyze, cloneDefaults, mergePlan, diffTotals, campaignsToCsv, MULTI_PRODUCT, LAYER_NAMES, shortCamp, actualMetrics } from './engine.js?v=20260909143141';
+import { mainFunnelSvg, productFunnelSvg } from './funnel.js?v=20260909143141';
+import { createApi, loadPlugins } from './plugins.js?v=20260909143141';
+import * as ENGINE from './engine.js?v=20260909143141';
 
 // ---------- เก็บข้อมูล ----------
 const KEYS = { settings: 'kad:settings', days: 'kad:days', plan: 'kad:plan', clips: 'kad:clips', manual: 'kad:manual' };
@@ -18,6 +20,26 @@ const state = {
 // รวม rules ที่อาจเพิ่มใหม่ในเวอร์ชันหลัง
 state.settings.rules = Object.assign(cloneDefaults().rules, state.settings.rules || {});
 state.date = Object.keys(state.days).sort().pop() || null;
+
+// ---------- ปลั๊กอิน: API กลาง window.AdBoard ----------
+const BUILD = (document.querySelector('script[src*="app.js"]') || {}).src?.split('v=')[1] || 'dev';
+const PLUGIN_BASE = location.protocol === 'file:' ? 'https://bigboybigzero.github.io/blisstech-kradan-ad/' : '';
+const AB = createApi({
+  toast: (m) => toast(m),
+  showView: (v) => showView(v),
+  getDay: (date) => (date ? state.days[date] : day()) || null,
+  getDates: () => Object.keys(state.days).sort(),
+  getPlan: () => currentPlan(),
+  getSettings: () => state.settings,
+  engine: ENGINE,
+  setOverride: (date, name, patch) => { const D = state.days[date]; if (!D || !D.campaigns.some(c => c.name === name)) return false; D.overrides[name] = { ...(D.overrides[name] || {}), ...patch }; save(KEYS.days, state.days); renderDecisions(); return true; },
+  setActual: (date, actual) => { const D = state.days[date]; if (!D) return false; D.actual = actual && actual.rev > 0 ? { ...actual, updatedAt: new Date().toISOString() } : null; save(KEYS.days, state.days); renderOverview(); return true; },
+  addPlanItem: (layer, key, item) => { const layers = currentPlan(), p = layers.find(x => x.layer === layer); if (!p || !p[key]) return false; p[key].push({ ...item, source: 'team' }); savePlanFrom(layers); renderPlan(); renderFunnel(); return true; },
+  renderPngBlob: async (date) => { const D = (date ? state.days[date] : day()); if (!D) throw new Error('ยังไม่ได้โหลดไฟล์'); const m = await import('./sheet.js?v=20260909143141'); return (await m.renderPngBlob(D, currentPlan(), $('#sheetHost'))).blob; },
+  onRegistryChange: () => { if (typeof renderPluginUi === 'function') renderPluginUi(); },
+});
+window.AdBoard = AB;
+let pluginLoadResults = [];
 
 // ---------- ตัวช่วย ----------
 const $ = s => document.querySelector(s);
@@ -57,12 +79,16 @@ async function fileToLogoDataUrl(file, size = 128) {
 
 // ---------- นำทาง ----------
 function showView(v) {
+  if (!document.querySelector(`.view[data-view="${CSS.escape(v)}"]`)) v = 'load';
   document.querySelectorAll('.view').forEach(s => s.classList.toggle('hidden', s.dataset.view !== v));
   document.querySelectorAll('.opnav-item').forEach(b => b.classList.toggle('on', b.dataset.view === v));
+  const pv = AB.registry.views.find(x => 'p:' + x.id === v);
+  if (pv) { const el = document.querySelector(`.view[data-view="${CSS.escape(v)}"] .pv-body`); try { pv.render(el, AB); } catch (e) { el.innerHTML = `<div class="warnbox">ปลั๊กอินแสดงผลไม่ได้: ${esc(e.message)}</div>`; } }
+  AB.emit('view:shown', { view: v });
   try { history.replaceState(null, '', '#/' + v); } catch {}
 }
 $('#nav').addEventListener('click', e => { const b = e.target.closest('[data-view]'); if (b) showView(b.dataset.view); });
-$('#daySelect').addEventListener('change', e => { state.date = e.target.value || null; renderAll(); });
+$('#daySelect').addEventListener('change', e => { state.date = e.target.value || null; renderAll(); AB.emit('day:changed', { date: state.date }); });
 
 // ---------- โหลดไฟล์ ----------
 const drop = $('#drop'), fileInput = $('#fileInput');
@@ -136,10 +162,11 @@ function commitPending() {
   state.date = A.date; state.pending = null;
   const q = new URLSearchParams(location.search); // โหมดพัฒนา
   if (q.get('sample')) adviceModule().then(m => { if (m) { rec.advice = m.sampleAdvice(rec, currentPlan()); save(KEYS.days, state.days); renderAdvice(); renderOverview(); } });
-  if (q.get('sheet')) import('./sheet.js?v=20260909142229').then(m => { $('#sheetHost').innerHTML = m.sheetHtml(rec, currentPlan()); }).catch(e => { $('#exportMsg').textContent = e.message; });
-  if (q.get('png')) import('./sheet.js?v=20260909142229').then(m => m.exportPng(rec, currentPlan(), $('#sheetHost'), true)).then(r => { $('#exportMsg').textContent = 'png ok ' + r; }).catch(e => { $('#exportMsg').textContent = 'png fail ' + e.message; });
+  if (q.get('sheet')) import('./sheet.js?v=20260909143141').then(m => { $('#sheetHost').innerHTML = m.sheetHtml(rec, currentPlan()); }).catch(e => { $('#exportMsg').textContent = e.message; });
+  if (q.get('png')) import('./sheet.js?v=20260909143141').then(m => m.exportPng(rec, currentPlan(), $('#sheetHost'), true)).then(r => { $('#exportMsg').textContent = 'png ok ' + r; }).catch(e => { $('#exportMsg').textContent = 'png fail ' + e.message; });
   toast(`วิเคราะห์ ${thDate(A.date)} เสร็จ`);
   renderAll(); showView(autoView || 'overview'); autoView = null;
+  AB.emit('day:loaded', { date: A.date, fileName });
   if (state.settings.tgAuto && tgReady()) { $('#tgHint').textContent = 'กำลังส่งอัตโนมัติ...'; sendToTelegram(rec, $('#exportMsg')).then(ok => { $('#tgHint').textContent = ok ? `ส่งอัตโนมัติแล้ว ${new Date().toLocaleTimeString('th-TH')}` : 'ส่งอัตโนมัติไม่สำเร็จ ดูข้อความในหน้าส่งออก'; }); }
 }
 
@@ -231,7 +258,7 @@ $('#ovActual').addEventListener('click', e => {
   const sumBP = Object.values(act.byProduct).reduce((s, x) => s + (x.rev || 0), 0);
   if (act.rev === null && sumBP > 0) act.rev = sumBP;
   if (act.rev !== null && sumBP > act.rev * 1.02) { toast(`ยอดแยกสินค้ารวม ${n0(sumBP)} มากกว่ายอดรวม ${n0(act.rev)} ตรวจตัวเลขก่อน`); return; }
-  D.actual = act.rev === null ? null : act; save(KEYS.days, state.days); renderOverview(); toast(act.rev === null ? 'ล้างยอดจริงแล้ว' : 'บันทึกยอดจริงแล้ว');
+  D.actual = act.rev === null ? null : act; save(KEYS.days, state.days); renderOverview(); toast(act.rev === null ? 'ล้างยอดจริงแล้ว' : 'บันทึกยอดจริงแล้ว'); AB.emit('actual:saved', { date: state.date, actual: D.actual });
 });
 
 // ---------- กรวย ----------
@@ -281,11 +308,11 @@ $('#decisions').addEventListener('change', e => {
   const name = tr.dataset.camp; D.overrides[name] = D.overrides[name] || {};
   if (e.target.matches('[data-group]')) D.overrides[name].group = e.target.value;
   if (e.target.matches('[data-budget]')) D.overrides[name].budgetNext = e.target.value === '' ? null : Number(e.target.value);
-  save(KEYS.days, state.days); renderDecisions();
+  save(KEYS.days, state.days); renderDecisions(); AB.emit('decision:changed', { date: state.date, campaign: name, override: D.overrides[name] });
 });
 
 // ---------- แผน ----------
-function savePlanFrom(layers) { state.plan = { layers, updatedAt: new Date().toISOString() }; save(KEYS.plan, state.plan); }
+function savePlanFrom(layers) { state.plan = { layers, updatedAt: new Date().toISOString() }; save(KEYS.plan, state.plan); AB.emit('plan:changed', { date: state.date }); }
 function renderPlan() {
   const D = day(); if (!D) { $('#plan').textContent = 'ยังไม่ได้โหลดไฟล์'; return; }
   const layers = currentPlan();
@@ -340,13 +367,13 @@ $('#advice').addEventListener('input', e => {
   o[parts[parts.length - 1]] = el.textContent; D.advice.editedAt = new Date().toISOString();
   save(KEYS.days, state.days); if (parts[0] === 'headline') renderOverview();
 });
-async function adviceModule() { try { return await import('./advice.js?v=20260909142229'); } catch (e) { toast('ยังไม่มีส่วนคำแนะนำ (advice.js)'); return null; } }
+async function adviceModule() { try { return await import('./advice.js?v=20260909143141'); } catch (e) { toast('ยังไม่มีส่วนคำแนะนำ (advice.js)'); return null; } }
 $('#btnAdvice').addEventListener('click', async () => {
   const D = day(); if (!D) { toast('โหลดไฟล์ก่อน'); return; }
   if (!state.settings.apiKey) { toast('ใส่ API key ในหน้าตั้งค่าก่อน'); showView('settings'); return; }
   const m = await adviceModule(); if (!m) return;
   $('#adviceStatus').textContent = 'กำลังขอคำแนะนำจาก Claude...'; $('#btnAdvice').disabled = true;
-  try { D.advice = await m.getAdvice(D, prevDay(), currentPlan(), state.settings); save(KEYS.days, state.days); renderAdvice(); renderOverview(); $('#adviceStatus').textContent = 'ได้คำแนะนำแล้ว'; }
+  try { D.advice = await m.getAdvice(D, prevDay(), currentPlan(), state.settings); save(KEYS.days, state.days); renderAdvice(); renderOverview(); $('#adviceStatus').textContent = 'ได้คำแนะนำแล้ว'; AB.emit('advice:ready', { date: state.date, advice: D.advice }); }
   catch (e) { $('#adviceStatus').textContent = e.message; }
   finally { $('#btnAdvice').disabled = false; }
 });
@@ -365,7 +392,7 @@ $('#btnCsv').addEventListener('click', () => {
 });
 $('#btnPng').addEventListener('click', async () => {
   const D = day(); if (!D) { toast('โหลดไฟล์ก่อน'); return; }
-  let m; try { m = await import('./sheet.js?v=20260909142229'); } catch { $('#exportMsg').textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return; }
+  let m; try { m = await import('./sheet.js?v=20260909143141'); } catch { $('#exportMsg').textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return; }
   $('#exportMsg').textContent = 'กำลังสร้างรูป...'; $('#btnPng').disabled = true;
   try { const name = await m.exportPng(D, currentPlan(), $('#sheetHost')); $('#exportMsg').textContent = `ดาวน์โหลด ${name} แล้ว`; }
   catch (e) { $('#exportMsg').textContent = 'สร้างรูปไม่ได้: ' + e.message; }
@@ -373,7 +400,7 @@ $('#btnPng').addEventListener('click', async () => {
 });
 
 // ---------- Telegram ----------
-async function tgModule() { try { return await import('./telegram.js?v=20260909142229'); } catch { toast('ยังไม่มีส่วน Telegram (telegram.js)'); return null; } }
+async function tgModule() { try { return await import('./telegram.js?v=20260909143141'); } catch { toast('ยังไม่มีส่วน Telegram (telegram.js)'); return null; } }
 function tgReady() { const S = state.settings; return !!(S.tgToken && S.tgChat); }
 function tgCaption(D) {
   const T = D.totals, A = D.advice;
@@ -385,7 +412,7 @@ function tgCaption(D) {
 async function sendToTelegram(D, statusEl) {
   if (!tgReady()) { statusEl.textContent = 'ตั้งค่า bot token และกลุ่มในหน้าตั้งค่าก่อน'; showView('settings'); return false; }
   const tg = await tgModule(); if (!tg) return false;
-  let sheet; try { sheet = await import('./sheet.js?v=20260909142229'); } catch { statusEl.textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return false; }
+  let sheet; try { sheet = await import('./sheet.js?v=20260909143141'); } catch { statusEl.textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return false; }
   statusEl.textContent = 'กำลังสร้างรูปและส่ง...';
   try {
     const { blob, name } = await sheet.renderPngBlob(D, currentPlan(), $('#sheetHost'), 2);
@@ -394,13 +421,31 @@ async function sendToTelegram(D, statusEl) {
     const id = S.tgAsFile ? await tg.sendDocument(S.tgToken, S.tgChat, blob, name, tgCaption(D)) : await tg.sendPhoto(S.tgToken, S.tgChat, blob, tgCaption(D), name);
     D.tgSentAt = new Date().toISOString(); save(KEYS.days, state.days);
     statusEl.textContent = `ส่งเข้ากลุ่มแล้ว (ข้อความ #${id}) ${new Date().toLocaleTimeString('th-TH')}`;
-    toast('ส่งเข้า Telegram แล้ว'); return true;
+    toast('ส่งเข้า Telegram แล้ว'); AB.emit('export:sent', { target: 'telegram', date: D.date, messageId: id }); return true;
   } catch (e) { statusEl.textContent = 'ส่งไม่สำเร็จ: ' + e.message; return false; }
 }
 $('#btnTg').addEventListener('click', async () => {
   const D = day(); if (!D) { toast('โหลดไฟล์ก่อน'); return; }
   $('#btnTg').disabled = true; try { await sendToTelegram(D, $('#exportMsg')); } finally { $('#btnTg').disabled = false; }
 });
+
+// ---------- ปลั๊กอิน: UI ----------
+function renderPluginUi() {
+  // เมนู + หน้า
+  $('#navPlugins').innerHTML = AB.registry.views.map(v => `<button class="opnav-item" data-view="p:${esc(v.id)}"><span><b>${esc(v.title)}</b><small>${esc(v.subtitle || 'ปลั๊กอิน')}</small></span></button>`).join('');
+  const host = $('#pluginViews');
+  for (const v of AB.registry.views) if (!host.querySelector(`[data-view="p:${CSS.escape(v.id)}"]`)) { const sec = document.createElement('section'); sec.className = 'view hidden'; sec.dataset.view = 'p:' + v.id; sec.innerHTML = `<h2 class="sec-h">${esc(v.title)}</h2><div class="pv-body"></div>`; host.appendChild(sec); }
+  // ปุ่มส่งออก
+  $('#exportPlugins').innerHTML = AB.registry.exports.map(x => `<div class="stat"><div class="t">${esc(x.title)}</div><p class="small muted">${esc(x.desc || '')}</p><button class="btn" data-pexport="${esc(x.id)}">${esc(x.label || 'ส่งออก')}</button><div class="small muted" data-pmsg="${esc(x.id)}"></div></div>`).join('');
+}
+$('#exportPlugins').addEventListener('click', async e => {
+  const b = e.target.closest('[data-pexport]'); if (!b) return; const x = AB.registry.exports.find(v => v.id === b.dataset.pexport); const D = day();
+  const msg = $(`[data-pmsg="${CSS.escape(b.dataset.pexport)}"]`); if (!D) { msg.textContent = 'โหลดไฟล์ก่อน'; return; }
+  b.disabled = true; msg.textContent = 'กำลังทำ...';
+  try { msg.textContent = (await x.run(AB.getDay(D.date), AB)) || 'เสร็จแล้ว'; AB.emit('export:sent', { target: x.id, date: D.date }); } catch (err) { msg.textContent = 'ไม่สำเร็จ: ' + err.message; } finally { b.disabled = false; }
+});
+function pluginListText() { return (state.settings.plugins || []).map(p => (p.enabled === false ? '#' : '') + p.url).join('\n'); }
+function parsePluginList(txt) { return txt.split('\n').map(l => l.trim()).filter(Boolean).map(l => ({ url: l.replace(/^#\s*/, ''), enabled: !l.startsWith('#') })); }
 
 // ---------- ตั้งค่า ----------
 const RULE_LABELS = {
@@ -441,11 +486,22 @@ function renderSettings() {
       <label>ขั้นคลิปจากชื่อคลิป [{stage, regex}]</label><textarea id="setStage">${esc(JSON.stringify(S.stagePatterns, null, 1))}</textarea>
       <label>ชั้นกรวยจากชื่อชุดโฆษณา [{layer, regex}] (ไม่ตรงเลย = ชั้น 1)</label><textarea id="setLayer">${esc(JSON.stringify(S.layerPatterns, null, 1))}</textarea>
     </div>
+    <div class="card" style="margin-top:14px"><h3>ปลั๊กอิน (ต่อกับแอปอื่น)</h3>
+      <p class="small muted">ใส่ URL ของปลั๊กอินบรรทัดละ 1 ตัว (ไฟล์ .js แบบ ES module ที่ export default function install(api)) ขึ้นต้นด้วย # เพื่อปิดชั่วคราว ปลั๊กอินในตัว: <code>plugins/webhook.js</code> ส่ง JSON ไป Google Sheet / Make / Zapier · วิธีเขียนปลั๊กอินดู PLUGINS.md · API เวอร์ชัน ${esc(AB.version)}</p>
+      <textarea id="setPlugins" placeholder="plugins/webhook.js">${esc(pluginListText())}</textarea>
+      <div class="small muted" style="margin-top:6px">${pluginLoadResults.length ? pluginLoadResults.map(r => r.ok ? `<span class="zone safe">โหลดแล้ว</span> ${esc(r.name)}` : `<span class="zone danger">ผิดพลาด</span> ${esc(r.url)}: ${esc(r.error)}`).join('<br>') : 'ยังไม่มีปลั๊กอินที่โหลด'} · เปลี่ยนรายการแล้วกดบันทึก จากนั้นรีเฟรชหน้า</div>
+      <div id="pluginSettings">${AB.registry.settings.map(ps => `<div class="pset" data-pset="${esc(ps.id)}" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--sky-line)"><h3>${esc(ps.title)}</h3><div class="pset-body"></div><div class="row-btns" style="margin-top:8px"><button class="mini" data-psave="${esc(ps.id)}">บันทึกส่วนนี้</button><span class="small muted" data-psmsg="${esc(ps.id)}"></span></div></div>`).join('')}</div>
+    </div>
     <div class="row-btns" style="margin-top:14px"><button class="btn" id="btnSaveSet">บันทึกการตั้งค่า</button><button class="btn" id="btnResetRules">คืนค่าเกณฑ์เริ่มต้น</button><button class="btn danger" id="btnClearAll">ล้างข้อมูลทั้งหมดในเครื่องนี้</button></div>
     <p class="small muted" style="margin-top:8px">การตั้งค่าใหม่จะมีผลกับไฟล์ที่โหลดครั้งถัดไป วันที่เก็บไว้แล้วยังใช้ผลเดิม · ทะเบียนที่พนักงานเลือกเอง: สินค้า ${Object.keys(state.manual.products).length} แคมเปญ · ขั้นคลิป ${state.clips.length} คลิป</p>`;
+  for (const ps of AB.registry.settings) { const body = $(`[data-pset="${CSS.escape(ps.id)}"] .pset-body`); try { ps.render(body, AB); } catch (e) { body.innerHTML = `<div class="warnbox">${esc(e.message)}</div>`; } }
+  $('#pluginSettings').addEventListener('click', e => {
+    const b = e.target.closest('[data-psave]'); if (!b) return; const ps = AB.registry.settings.find(x => x.id === b.dataset.psave); const body = $(`[data-pset="${CSS.escape(ps.id)}"] .pset-body`);
+    try { if (ps.save) ps.save(body, AB); $(`[data-psmsg="${CSS.escape(ps.id)}"]`).textContent = 'บันทึกแล้ว'; } catch (err) { $(`[data-psmsg="${CSS.escape(ps.id)}"]`).textContent = err.message; }
+  });
   $('#btnSaveSet').addEventListener('click', () => {
     try {
-      const S2 = { ...state.settings, apiKey: $('#setKey').value.trim(), model: $('#setModel').value, rules: { ...state.settings.rules }, tgToken: $('#setTgToken').value.trim(), tgChat: $('#setTgChat').value.trim(), tgAuto: $('#setTgAuto').checked, tgAsFile: $('#setTgAsFile').checked, appName: $('#setAppName').value.trim() || DEFAULT_BRAND.appName, tagline: $('#setTagline').value.trim() };
+      const S2 = { ...state.settings, apiKey: $('#setKey').value.trim(), model: $('#setModel').value, rules: { ...state.settings.rules }, tgToken: $('#setTgToken').value.trim(), tgChat: $('#setTgChat').value.trim(), tgAuto: $('#setTgAuto').checked, tgAsFile: $('#setTgAsFile').checked, appName: $('#setAppName').value.trim() || DEFAULT_BRAND.appName, tagline: $('#setTagline').value.trim(), plugins: parsePluginList($('#setPlugins').value) };
       document.querySelectorAll('[data-rule]').forEach(i => { const v = Number(i.value); if (!isNaN(v)) S2.rules[i.dataset.rule] = v; });
       const pp = JSON.parse($('#setProd').value), sp = JSON.parse($('#setStage').value), lp = JSON.parse($('#setLayer').value);
       for (const p of [...pp, ...sp, ...lp]) new RegExp(p.regex, 'i');
@@ -494,6 +550,9 @@ function renderSettings() {
 
 // ---------- เริ่ม ----------
 renderAll();
+// โหลดปลั๊กอินตามรายการในตั้งค่า (dev: ?plugin=<url> เพิ่มชั่วคราว)
+{ const list = [...(state.settings.plugins || [])]; const q = new URLSearchParams(location.search).get('plugin'); if (q) list.push({ url: q, enabled: true });
+  loadPlugins(AB, list.map(p => ({ ...p, url: PLUGIN_BASE && !/^https?:/.test(p.url) ? PLUGIN_BASE + p.url : p.url })), BUILD).then(r => { pluginLoadResults = r; renderPluginUi(); renderSettings(); for (const x of r) if (!x.ok) toast(`โหลดปลั๊กอินไม่ได้: ${x.url} (${x.error})`); AB.emit('plugins:ready', { results: r }); if (state.date) AB.emit('day:changed', { date: state.date }); }); }
 // โหมดพัฒนา: ?keytest=<key> ทดสอบเส้นทาง SDK + ข้อความ error โดยไม่ต้องกดปุ่ม
 { const kt = new URLSearchParams(location.search).get('keytest'); if (kt) adviceModule().then(m => m && m.testKey(kt, state.settings.model)).then(r => { $('#exportMsg').textContent = 'keytest ok: ' + r; }).catch(e => { $('#exportMsg').textContent = 'keytest err: ' + e.message; }); }
 { const tt = new URLSearchParams(location.search).get('tgtest'); if (tt) tgModule().then(m => m && m.getMe(tt)).then(r => { $('#exportMsg').textContent = 'tgtest ok: ' + r; }).catch(e => { $('#exportMsg').textContent = 'tgtest err: ' + e.message; }); }

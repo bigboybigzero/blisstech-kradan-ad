@@ -27,6 +27,7 @@
     <button class="opnav-item" data-view="advice"><span><b>คำแนะนำ</b><small>จาก Claude</small></span></button>
     <button class="opnav-item" data-view="export"><span><b>ส่งออก</b><small>รูป 1 หน้า · CSV</small></span></button>
     <button class="opnav-item" data-view="settings"><span><b>ตั้งค่า</b><small>API key · เกณฑ์</small></span></button>
+    <div id="navPlugins"></div>
   </nav>
 
   <main class="opmain">
@@ -97,6 +98,7 @@
         <div class="stat"><div class="t">ส่งเข้า Telegram</div><p class="small muted" id="tgHint">รูปสรุป 1 หน้า + หัวข้อ เข้ากลุ่มที่ตั้งไว้ในหน้าตั้งค่า</p><button class="btn" id="btnTg">ส่งรูปเข้ากลุ่ม</button></div>
       </div>
       <p class="small muted" id="exportMsg"></p>
+      <div class="cards" id="exportPlugins"></div>
       <div id="sheetHost"></div>
     </section>
 
@@ -104,6 +106,7 @@
       <h2 class="sec-h">ตั้งค่า</h2>
       <div id="settings"></div>
     </section>
+    <div id="pluginViews"></div>
   </main>
 </div>
 <div class="toast" id="toast"></div>
@@ -112,6 +115,6 @@
 window.addEventListener('unhandledrejection', e => { document.getElementById('errlog').textContent += 'rejection: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason) + '\n'; });</script>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script type="module" src="app.js?v=20260909142229"></script>
+<script type="module" src="app.js?v=20260909143141"></script>
 </body>
 </html>
