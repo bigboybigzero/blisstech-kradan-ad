@@ -83,15 +83,23 @@ export function sheetHtml(D, plan) {
 </div>`;
 }
 
-/** สร้าง PNG แล้วดาวน์โหลด คืนชื่อไฟล์ */
-export async function exportPng(D, plan, host, probe = false) {
+/** สร้างรูปเป็น Blob PNG (ใช้ทั้งดาวน์โหลดและส่ง Telegram) */
+export async function renderPngBlob(D, plan, host, pixelRatio = 2) {
   await loadScript(H2I);
   host.innerHTML = sheetHtml(D, plan);
   const node = host.querySelector('#sheet');
   await new Promise(r => setTimeout(r, 300)); // รอฟอนต์
-  const dataUrl = await window.htmlToImage.toPng(node, { pixelRatio: 2, backgroundColor: '#ffffff', width: 1400, style: { margin: '0' } });
-  const name = `สรุปประชุมแอด-${D.date}.png`;
-  if (probe) return `${name} ${Math.round(dataUrl.length / 1024)}KB`;
-  const a = document.createElement('a'); a.href = dataUrl; a.download = name; a.click();
+  const blob = await window.htmlToImage.toBlob(node, { pixelRatio, backgroundColor: '#ffffff', width: 1400, style: { margin: '0' } });
+  if (!blob) throw new Error('สร้างรูปไม่สำเร็จ');
+  return { blob, name: `สรุปประชุมแอด-${D.date}.png` };
+}
+
+/** สร้าง PNG แล้วดาวน์โหลด คืนชื่อไฟล์ */
+export async function exportPng(D, plan, host, probe = false) {
+  const { blob, name } = await renderPngBlob(D, plan, host);
+  if (probe) return `${name} ${Math.round(blob.size / 1024)}KB`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
   return name;
 }

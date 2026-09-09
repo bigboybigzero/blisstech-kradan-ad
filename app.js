@@ -116,6 +116,7 @@ function commitPending() {
   if (q.get('png')) import('./sheet.js').then(m => m.exportPng(rec, currentPlan(), $('#sheetHost'), true)).then(r => { $('#exportMsg').textContent = 'png ok ' + r; }).catch(e => { $('#exportMsg').textContent = 'png fail ' + e.message; });
   toast(`วิเคราะห์ ${thDate(A.date)} เสร็จ`);
   renderAll(); showView(autoView || 'overview'); autoView = null;
+  if (state.settings.tgAuto && tgReady()) { $('#tgHint').textContent = 'กำลังส่งอัตโนมัติ...'; sendToTelegram(rec, $('#exportMsg')).then(ok => { $('#tgHint').textContent = ok ? `ส่งอัตโนมัติแล้ว ${new Date().toLocaleTimeString('th-TH')}` : 'ส่งอัตโนมัติไม่สำเร็จ ดูข้อความในหน้าส่งออก'; }); }
 }
 
 // ---------- เรนเดอร์รวม ----------
@@ -308,6 +309,34 @@ $('#btnPng').addEventListener('click', async () => {
   finally { $('#btnPng').disabled = false; }
 });
 
+// ---------- Telegram ----------
+async function tgModule() { try { return await import('./telegram.js'); } catch { toast('ยังไม่มีส่วน Telegram (telegram.js)'); return null; } }
+function tgReady() { const S = state.settings; return !!(S.tgToken && S.tgChat); }
+function tgCaption(D) {
+  const T = D.totals, A = D.advice;
+  const head = (A && A.headline) || `กระดานแอด ${thDate(D.date)}`;
+  return `${head}\nใช้ ${n0(T.spend)} · ขาย ${n0(T.rev)} · ROAS ${n2(T.roas)} · ค่าแอด ${n1(T.adpct)}% · ${n0(T.purch)} ออเดอร์${T.noval ? ` (ไม่มีมูลค่า ${T.noval})` : ''}\nรายละเอียด: ${location.origin}${location.pathname}`;
+}
+async function sendToTelegram(D, statusEl) {
+  if (!tgReady()) { statusEl.textContent = 'ตั้งค่า bot token และกลุ่มในหน้าตั้งค่าก่อน'; showView('settings'); return false; }
+  const tg = await tgModule(); if (!tg) return false;
+  let sheet; try { sheet = await import('./sheet.js'); } catch { statusEl.textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return false; }
+  statusEl.textContent = 'กำลังสร้างรูปและส่ง...';
+  try {
+    const { blob, name } = await sheet.renderPngBlob(D, currentPlan(), $('#sheetHost'), 2);
+    const S = state.settings;
+    // sendPhoto ย่อรูปให้ดูในแชท ถ้าเลือก "ส่งเป็นไฟล์" จะได้ความละเอียดเต็ม
+    const id = S.tgAsFile ? await tg.sendDocument(S.tgToken, S.tgChat, blob, name, tgCaption(D)) : await tg.sendPhoto(S.tgToken, S.tgChat, blob, tgCaption(D), name);
+    D.tgSentAt = new Date().toISOString(); save(KEYS.days, state.days);
+    statusEl.textContent = `ส่งเข้ากลุ่มแล้ว (ข้อความ #${id}) ${new Date().toLocaleTimeString('th-TH')}`;
+    toast('ส่งเข้า Telegram แล้ว'); return true;
+  } catch (e) { statusEl.textContent = 'ส่งไม่สำเร็จ: ' + e.message; return false; }
+}
+$('#btnTg').addEventListener('click', async () => {
+  const D = day(); if (!D) { toast('โหลดไฟล์ก่อน'); return; }
+  $('#btnTg').disabled = true; try { await sendToTelegram(D, $('#exportMsg')); } finally { $('#btnTg').disabled = false; }
+});
+
 // ---------- ตั้งค่า ----------
 const RULE_LABELS = {
   minSpend: 'ใช้จ่ายต่ำกว่านี้ = ข้อมูลยังน้อย (บาท)', stopRoas: 'ปิดเมื่อ ROAS ต่ำกว่า (คลิปปิดการขาย)', stopSpend: 'ปิดเมื่อใช้จ่ายถึง (บาท)', stopZeroRevSpend: 'ปิดเมื่อไม่มียอดและใช้จ่ายถึง (บาท)',
@@ -324,6 +353,15 @@ function renderSettings() {
       <div class="row-btns"><input type="password" id="setKey" value="${esc(S.apiKey)}" placeholder="sk-ant-..." style="max-width:420px"><button class="mini" id="btnTestKey">ทดสอบการเชื่อมต่อ</button><span class="small muted" id="keyMsg"></span></div>
       <label>โมเดล</label><select id="setModel"><option${S.model === 'claude-opus-5' ? ' selected' : ''}>claude-opus-5</option><option${S.model === 'claude-sonnet-5' ? ' selected' : ''}>claude-sonnet-5</option></select>
     </div>
+    <div class="card" style="margin-top:14px"><h3>Telegram (ส่งรูปสรุปเข้ากลุ่ม)</h3>
+      <p class="small muted">ขั้นตอนครั้งเดียว: (1) ใน Telegram คุยกับ @BotFather พิมพ์ /newbot ตั้งชื่อ แล้วคัดลอก token มาวางด้านล่าง (2) สร้างกลุ่มแล้วดึงบอทเข้ากลุ่ม (3) พิมพ์ข้อความอะไรก็ได้ในกลุ่ม 1 ครั้ง แล้วกด "ค้นหากลุ่ม" (4) เลือกกลุ่ม กดบันทึก แล้วกด "ทดสอบส่ง"</p>
+      <label>bot token (เก็บในเครื่องนี้เท่านั้น)</label>
+      <div class="row-btns"><input type="password" id="setTgToken" value="${esc(S.tgToken || '')}" placeholder="123456789:AAxxxxxxxx..." style="max-width:420px"><button class="mini" id="btnTgCheck">ตรวจ token</button><button class="mini" id="btnTgFind">ค้นหากลุ่ม</button><span class="small muted" id="tgMsg"></span></div>
+      <label>กลุ่ม (chat id) เลือกจากผลค้นหา หรือพิมพ์เอง เช่น -1001234567890</label>
+      <div class="row-btns"><select id="setTgPick" class="hidden"></select><input type="text" id="setTgChat" value="${esc(S.tgChat || '')}" placeholder="-100..." style="max-width:260px"><button class="mini" id="btnTgTest">ทดสอบส่ง</button></div>
+      <label class="row-btns" style="font-size:13.5px;color:rgb(var(--ink))"><input type="checkbox" id="setTgAuto" style="width:auto"${S.tgAuto ? ' checked' : ''}> ส่งรูปเข้ากลุ่มอัตโนมัติทุกครั้งที่วิเคราะห์ไฟล์เสร็จ</label>
+      <label class="row-btns" style="font-size:13.5px;color:rgb(var(--ink))"><input type="checkbox" id="setTgAsFile" style="width:auto"${S.tgAsFile ? ' checked' : ''}> ส่งเป็นไฟล์แนบ (ความละเอียดเต็ม) แทนรูปในแชท</label>
+    </div>
     <div class="card" style="margin-top:14px"><h3>เกณฑ์ตัดสิน</h3><div class="setgrid">${Object.keys(RULE_LABELS).map(k => `<div><label>${esc(RULE_LABELS[k])}</label><input type="number" step="any" data-rule="${k}" value="${S.rules[k]}"></div>`).join('')}</div></div>
     <div class="card" style="margin-top:14px"><h3>รูปแบบชื่อ (regex ไม่สนตัวพิมพ์ ลำดับบนก่อน)</h3>
       <label>สินค้าจากชื่อแคมเปญ [{name, regex}]</label><textarea id="setProd">${esc(JSON.stringify(S.productPatterns, null, 1))}</textarea>
@@ -334,7 +372,7 @@ function renderSettings() {
     <p class="small muted" style="margin-top:8px">การตั้งค่าใหม่จะมีผลกับไฟล์ที่โหลดครั้งถัดไป วันที่เก็บไว้แล้วยังใช้ผลเดิม · ทะเบียนที่พนักงานเลือกเอง: สินค้า ${Object.keys(state.manual.products).length} แคมเปญ · ขั้นคลิป ${state.clips.length} คลิป</p>`;
   $('#btnSaveSet').addEventListener('click', () => {
     try {
-      const S2 = { ...state.settings, apiKey: $('#setKey').value.trim(), model: $('#setModel').value, rules: { ...state.settings.rules } };
+      const S2 = { ...state.settings, apiKey: $('#setKey').value.trim(), model: $('#setModel').value, rules: { ...state.settings.rules }, tgToken: $('#setTgToken').value.trim(), tgChat: $('#setTgChat').value.trim(), tgAuto: $('#setTgAuto').checked, tgAsFile: $('#setTgAsFile').checked };
       document.querySelectorAll('[data-rule]').forEach(i => { const v = Number(i.value); if (!isNaN(v)) S2.rules[i.dataset.rule] = v; });
       const pp = JSON.parse($('#setProd').value), sp = JSON.parse($('#setStage').value), lp = JSON.parse($('#setLayer').value);
       for (const p of [...pp, ...sp, ...lp]) new RegExp(p.regex, 'i');
@@ -344,6 +382,29 @@ function renderSettings() {
   });
   $('#btnResetRules').addEventListener('click', () => { const d = cloneDefaults(); state.settings = { ...state.settings, rules: d.rules, productPatterns: d.productPatterns, stagePatterns: d.stagePatterns, layerPatterns: d.layerPatterns }; save(KEYS.settings, state.settings); renderSettings(); toast('คืนค่าเริ่มต้นแล้ว (ยังเก็บ API key ไว้)'); });
   $('#btnClearAll').addEventListener('click', () => { if (!confirm('ลบวันที่เก็บไว้ แผน ทะเบียน และการตั้งค่าทั้งหมด (รวม API key) ในเครื่องนี้?')) return; Object.values(KEYS).forEach(k => localStorage.removeItem(k)); location.reload(); });
+  const tgSaveDraft = () => { state.settings.tgToken = $('#setTgToken').value.trim(); state.settings.tgChat = $('#setTgChat').value.trim(); state.settings.tgAuto = $('#setTgAuto').checked; state.settings.tgAsFile = $('#setTgAsFile').checked; save(KEYS.settings, state.settings); };
+  $('#btnTgCheck').addEventListener('click', async () => {
+    const t = $('#setTgToken').value.trim(); if (!t) { $('#tgMsg').textContent = 'วาง token ก่อน'; return; }
+    const tg = await tgModule(); if (!tg) return; $('#tgMsg').textContent = 'กำลังตรวจ...';
+    try { $('#tgMsg').textContent = 'บอทใช้ได้: ' + await tg.getMe(t); tgSaveDraft(); } catch (e) { $('#tgMsg').textContent = e.message; }
+  });
+  $('#btnTgFind').addEventListener('click', async () => {
+    const t = $('#setTgToken').value.trim(); if (!t) { $('#tgMsg').textContent = 'วาง token ก่อน'; return; }
+    const tg = await tgModule(); if (!tg) return; $('#tgMsg').textContent = 'กำลังค้นหา...';
+    try {
+      const chats = await tg.findChats(t);
+      if (!chats.length) { $('#tgMsg').textContent = 'ยังไม่เจอกลุ่ม: ดึงบอทเข้ากลุ่มแล้วพิมพ์ข้อความในกลุ่ม 1 ครั้ง แล้วกดค้นหาใหม่'; return; }
+      const sel = $('#setTgPick'); sel.classList.remove('hidden');
+      sel.innerHTML = chats.map(c => `<option value="${esc(c.id)}">${esc(c.title)} (${esc(c.type)} ${esc(c.id)})</option>`).join('');
+      $('#setTgChat').value = chats[0].id; sel.addEventListener('change', () => { $('#setTgChat').value = sel.value; });
+      $('#tgMsg').textContent = `พบ ${chats.length} กลุ่ม เลือกแล้วกดบันทึก`; tgSaveDraft();
+    } catch (e) { $('#tgMsg').textContent = e.message; }
+  });
+  $('#btnTgTest').addEventListener('click', async () => {
+    tgSaveDraft(); const D = day();
+    if (!D) { $('#tgMsg').textContent = 'โหลดไฟล์ก่อน จึงจะมีรูปให้ทดสอบส่ง'; return; }
+    $('#btnTgTest').disabled = true; try { await sendToTelegram(D, $('#tgMsg')); } finally { $('#btnTgTest').disabled = false; }
+  });
   $('#btnTestKey').addEventListener('click', async () => {
     const key = $('#setKey').value.trim(); if (!key) { $('#keyMsg').textContent = 'ใส่ key ก่อน'; return; }
     const m = await adviceModule(); if (!m) return;
@@ -356,6 +417,7 @@ function renderSettings() {
 renderAll();
 // โหมดพัฒนา: ?keytest=<key> ทดสอบเส้นทาง SDK + ข้อความ error โดยไม่ต้องกดปุ่ม
 { const kt = new URLSearchParams(location.search).get('keytest'); if (kt) adviceModule().then(m => m && m.testKey(kt, state.settings.model)).then(r => { $('#exportMsg').textContent = 'keytest ok: ' + r; }).catch(e => { $('#exportMsg').textContent = 'keytest err: ' + e.message; }); }
+{ const tt = new URLSearchParams(location.search).get('tgtest'); if (tt) tgModule().then(m => m && m.getMe(tt)).then(r => { $('#exportMsg').textContent = 'tgtest ok: ' + r; }).catch(e => { $('#exportMsg').textContent = 'tgtest err: ' + e.message; }); }
 const hashView = () => location.hash.replace(/^#\/?/, '');
 showView(hashView() || (state.date ? 'overview' : 'load'));
 // โหมดพัฒนา: ?auto=<path.xlsx> โหลดไฟล์อัตโนมัติ (ใช้กับ python -m http.server หรือ --allow-file-access-from-files)
