@@ -1,6 +1,6 @@
 // sheet.js — สร้างแผ่นสรุป 1 หน้า (โครงเดียวกับ ../รายงาน/สรุปประชุมแอด-7กย69.html) แล้วส่งออกเป็น PNG 2 เท่า
-import { stageCardsHtml } from './funnel.js?v=20260909161432';
-import { shortCamp, actualMetrics } from './engine.js?v=20260909161432';
+import { stageCardsHtml } from './funnel.js?v=20260909161715';
+import { shortCamp, actualMetrics } from './engine.js?v=20260909161715';
 
 const H2I = 'https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.js';
 function loadScript(src) { return new Promise((ok, no) => { if (window.htmlToImage) return ok(); const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => no(new Error('โหลดตัวสร้างรูป (html-to-image) ไม่ได้ ตรวจอินเทอร์เน็ต')); document.head.appendChild(s); }); }
