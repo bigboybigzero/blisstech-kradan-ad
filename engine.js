@@ -381,6 +381,30 @@ export function mergePlan(autoPlan, savedPlan) {
   return { layers, updatedAt: savedPlan.updatedAt || null };
 }
 
+/** คำนวณตัวชี้วัดจากยอดขายจริงที่ทีมกรอก
+ * actual = { rev, orders, byProduct: { [product]: { rev, orders } }, note }
+ * คืน null ถ้ายังไม่กรอกยอดจริง */
+export function actualMetrics(totals, products, actual) {
+  if (!actual || !(actual.rev > 0)) return null;
+  const spend = totals.spend, rev = actual.rev, orders = actual.orders > 0 ? actual.orders : null;
+  const out = {
+    rev, orders,
+    roas: spend > 0 ? rev / spend : null,
+    adpct: spend / rev * 100,
+    cpp: orders ? spend / orders : null,
+    aov: orders ? rev / orders : null,
+    metaCoverage: totals.rev / rev * 100,            // Meta จับยอดได้กี่ % ของจริง
+    metaGap: rev - totals.rev,                        // ยอดที่กระดานไม่เห็น
+    byProduct: {},
+  };
+  const bp = actual.byProduct || {};
+  for (const p of products || []) {
+    const a = bp[p.name]; if (!a || !(a.rev > 0)) continue;
+    out.byProduct[p.name] = { rev: a.rev, orders: a.orders || null, adpct: p.spend / a.rev * 100, roas: p.spend > 0 ? a.rev / p.spend : null, metaCoverage: p.rev / a.rev * 100 };
+  }
+  return out;
+}
+
 /** ส่วนต่างเทียบวันก่อน */
 export function diffTotals(today, prev) {
   if (!prev) return null;

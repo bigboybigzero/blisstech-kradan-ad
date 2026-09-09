@@ -1,6 +1,6 @@
 // app.js — หน้าจอกระดานแอด BLISSTECH (สถานะ, localStorage, เรนเดอร์ทุกหน้า)
-import { analyze, cloneDefaults, mergePlan, diffTotals, campaignsToCsv, MULTI_PRODUCT, LAYER_NAMES, shortCamp } from './engine.js?v=20260909115720';
-import { mainFunnelSvg, productFunnelSvg } from './funnel.js?v=20260909115720';
+import { analyze, cloneDefaults, mergePlan, diffTotals, campaignsToCsv, MULTI_PRODUCT, LAYER_NAMES, shortCamp, actualMetrics } from './engine.js?v=20260909133131';
+import { mainFunnelSvg, productFunnelSvg } from './funnel.js?v=20260909133131';
 
 // ---------- เก็บข้อมูล ----------
 const KEYS = { settings: 'kad:settings', days: 'kad:days', plan: 'kad:plan', clips: 'kad:clips', manual: 'kad:manual' };
@@ -112,8 +112,8 @@ function commitPending() {
   state.date = A.date; state.pending = null;
   const q = new URLSearchParams(location.search); // โหมดพัฒนา
   if (q.get('sample')) adviceModule().then(m => { if (m) { rec.advice = m.sampleAdvice(rec, currentPlan()); save(KEYS.days, state.days); renderAdvice(); renderOverview(); } });
-  if (q.get('sheet')) import('./sheet.js?v=20260909115720').then(m => { $('#sheetHost').innerHTML = m.sheetHtml(rec, currentPlan()); }).catch(e => { $('#exportMsg').textContent = e.message; });
-  if (q.get('png')) import('./sheet.js?v=20260909115720').then(m => m.exportPng(rec, currentPlan(), $('#sheetHost'), true)).then(r => { $('#exportMsg').textContent = 'png ok ' + r; }).catch(e => { $('#exportMsg').textContent = 'png fail ' + e.message; });
+  if (q.get('sheet')) import('./sheet.js?v=20260909133131').then(m => { $('#sheetHost').innerHTML = m.sheetHtml(rec, currentPlan()); }).catch(e => { $('#exportMsg').textContent = e.message; });
+  if (q.get('png')) import('./sheet.js?v=20260909133131').then(m => m.exportPng(rec, currentPlan(), $('#sheetHost'), true)).then(r => { $('#exportMsg').textContent = 'png ok ' + r; }).catch(e => { $('#exportMsg').textContent = 'png fail ' + e.message; });
   toast(`วิเคราะห์ ${thDate(A.date)} เสร็จ`);
   renderAll(); showView(autoView || 'overview'); autoView = null;
   if (state.settings.tgAuto && tgReady()) { $('#tgHint').textContent = 'กำลังส่งอัตโนมัติ...'; sendToTelegram(rec, $('#exportMsg')).then(ok => { $('#tgHint').textContent = ok ? `ส่งอัตโนมัติแล้ว ${new Date().toLocaleTimeString('th-TH')}` : 'ส่งอัตโนมัติไม่สำเร็จ ดูข้อความในหน้าส่งออก'; }); }
@@ -144,7 +144,7 @@ function renderOverview() {
   $('#ovDate').textContent = D ? thDate(D.date) : '';
   $('#ovHeadline').classList.toggle('hidden', !(D && D.advice && D.advice.headline));
   if (D && D.advice && D.advice.headline) $('#ovHeadline').textContent = D.advice.headline;
-  if (!D) { $('#ovCards').innerHTML = ''; $('#ovNote').innerHTML = ''; $('#ovProducts').textContent = 'ยังไม่ได้โหลดไฟล์'; $('#ovPlaces').textContent = 'ยังไม่ได้โหลดไฟล์'; return; }
+  if (!D) { $('#ovCards').innerHTML = ''; $('#ovNote').innerHTML = ''; $('#ovActual').innerHTML = ''; $('#ovProducts').textContent = 'ยังไม่ได้โหลดไฟล์'; $('#ovPlaces').textContent = 'ยังไม่ได้โหลดไฟล์'; return; }
   const P = prevDay(), df = P ? diffTotals(D.totals, P.totals) : null;
   const delta = (k, fmt, goodUp = true, suffix = '') => {
     if (!df || df[k] === null || df[k] === undefined) return P ? '' : '<div class="sub">ยังไม่มีวันก่อนหน้าให้เทียบ</div>';
@@ -159,17 +159,55 @@ function renderOverview() {
     <div class="stat"><div class="t">ออเดอร์ · ไม่มีมูลค่า</div><div class="v num">${n0(T.purch)} <span class="sub">· ${n0(T.noval)}</span></div>${delta('purch', n0, true)}</div>
     <div class="stat"><div class="t">ต่อออเดอร์ (บาท)</div><div class="v num">${n0(T.cpp)}</div>${delta('cpp', n0, false)}</div>
     <div class="stat"><div class="t">AOV (บาท)</div><div class="v num">${n0(T.aov)}</div><div class="sub">เฉพาะออเดอร์ที่มีมูลค่า</div></div>`;
+  const AM = actualMetrics(T, D.products, D.actual);
+  const PA = P && actualMetrics(P.totals, P.products, P.actual);
+  const dAct = (k, fmt, goodUp, suffix = '') => { if (!AM || !PA || AM[k] === null || PA[k] === null) return ''; const v = AM[k] - PA[k], up = v > 0, cls = v === 0 ? '' : (up === goodUp ? 'up' : 'down'); return `<div class="d ${cls}">${up ? '▲' : v < 0 ? '▼' : '='} ${fmt(Math.abs(v))}${suffix} เทียบ ${thDate(P.date)}</div>`; };
+  if (AM) $('#ovCards').innerHTML += `
+    <div class="stat actual"><div class="t">ยอดขายจริง (บาท)</div><div class="v num">${n0(AM.rev)}</div>${dAct('rev', n0, true)}<div class="sub">กระดาน Meta จับได้ ${n0(AM.metaCoverage)}% ของจริง</div></div>
+    <div class="stat actual"><div class="t">ROAS จริง · ค่าแอดจริง</div><div class="v num">${n2(AM.roas)} <span class="sub">· ${n1(AM.adpct)}%</span></div>${dAct('adpct', n1, false, '%')}</div>
+    ${AM.orders ? `<div class="stat actual"><div class="t">ออเดอร์จริง · ต่อออเดอร์จริง</div><div class="v num">${n0(AM.orders)} <span class="sub">· ${n0(AM.cpp)} บาท</span></div><div class="sub">AOV จริง ${n0(AM.aov)}</div></div>` : ''}`;
+  const act = D.actual || {}, bp = act.byProduct || {};
+  const prodNames = D.products.map(p => p.name).filter(n => n !== 'ไม่ระบุ');
+  $('#ovActual').innerHTML = `<div class="card actual-card"><h3>ยอดขายจริงของวันนี้ (จากออเดอร์จริง)</h3>
+    <p class="small muted">กรอกยอดที่ปิดได้จริงจากระบบออเดอร์ เพื่อคำนวณค่าแอดจริง เพราะกระดาน Meta จับยอดได้ไม่ครบ (ออเดอร์ทางแชท ออเดอร์ที่ไม่มีมูลค่า) ตัวเลขนี้จะไปอยู่ในภาพรวม รูปสรุป Telegram และคำแนะนำจาก Claude</p>
+    <div class="setgrid">
+      <div><label>ยอดขายจริงรวม (บาท)</label><input type="number" min="0" step="1" data-actual="rev" value="${act.rev ?? ''}" placeholder="เช่น 92500"></div>
+      <div><label>จำนวนออเดอร์จริง</label><input type="number" min="0" step="1" data-actual="orders" value="${act.orders ?? ''}" placeholder="เช่น 120"></div>
+      <div><label>หมายเหตุ (ที่มาของยอด / โปรวันนี้)</label><input type="text" data-actual="note" value="${esc(act.note || '')}" placeholder="เช่น จาก Pancake + Shopee"></div>
+    </div>
+    <details style="margin-top:10px"${Object.keys(bp).length ? ' open' : ''}><summary class="small muted" style="cursor:pointer">แยกตามสินค้า (ไม่บังคับ ใส่แล้วจะได้ค่าแอดจริงต่อสินค้า)</summary>
+      <div class="setgrid" style="margin-top:8px">${prodNames.map(n => `<div><label>${esc(n)} ยอดจริง (บาท) · ออเดอร์</label><div class="row-btns" style="margin:0"><input type="number" min="0" step="1" data-actual-prod="${esc(n)}" data-field="rev" value="${(bp[n] || {}).rev ?? ''}" placeholder="บาท" style="max-width:140px"><input type="number" min="0" step="1" data-actual-prod="${esc(n)}" data-field="orders" value="${(bp[n] || {}).orders ?? ''}" placeholder="ออเดอร์" style="max-width:100px"></div></div>`).join('')}</div>
+    </details>
+    <div class="row-btns" style="margin-top:12px"><button class="btn" id="btnActualSave">บันทึกยอดจริง</button><span class="small muted" id="actualMsg">${act.updatedAt ? 'บันทึกล่าสุด ' + new Date(act.updatedAt).toLocaleString('th-TH') : 'ยังไม่ได้กรอก'}</span></div>
+  </div>`;
   const notes = [];
+  if (AM) {
+    if (AM.metaCoverage < 80) notes.push(`กระดาน Meta จับยอดได้ ${n0(AM.metaCoverage)}% ของยอดจริง (หายไป ${n0(AM.metaGap)} บาท) ค่าแอดจริงคือ ${n1(AM.adpct)}% ไม่ใช่ ${n1(T.adpct)}% ให้ใช้ค่าแอดจริงตัดสินภาพรวม ส่วน ROAS รายแคมเปญยังใช้เปรียบเทียบกันเองได้`);
+    else if (AM.metaCoverage > 110) notes.push(`กระดาน Meta รายงานยอดสูงกว่ายอดจริง ${n0(AM.metaCoverage - 100)}% (นับซ้ำหรือคืนสินค้า) ให้เชื่อยอดจริง`);
+  }
   if (T.noval > 0) notes.push(`ออเดอร์ ${T.noval} รายการถูกนับเป็นการซื้อแต่ไม่มีมูลค่าส่งมา ถ้าคิดที่ AOV เดียวกัน ยอดจริงน่าจะราว ${n0(T.rev + T.noval * (T.aov || 0))} บาท ตรวจ tracking ก่อนตัดสินแคมเปญกลุ่มนี้`);
   const l4 = D.layers.find(l => l.layer === 4); if (l4 && l4.revShare > 50) notes.push(`ยอด ${n0(l4.revShare)}% มาจากลูกค้าเก่า (ชั้น 4) ยอดจากคนใหม่ยังน้อย`);
   if (D.unresolved.products.length) notes.push(`มีแคมเปญที่เลือกสินค้าเป็น "${MULTI_PRODUCT}" หรือยังไม่ระบุ ${D.unresolved.products.length} ตัว`);
   $('#ovNote').innerHTML = notes.map(n => `<div class="hint">${esc(n)}</div>`).join('');
-  $('#ovProducts').innerHTML = `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>สินค้า</th><th class="r">ใช้จ่าย</th><th class="r">งบ%</th><th class="r">ออเดอร์</th><th class="r">ยอดขาย</th><th class="r">ROAS</th><th class="r">ค่าแอด%</th></tr></thead><tbody>
-    ${D.products.map(p => `<tr><td>${esc(p.name)}</td><td class="r num">${n0(p.spend)}</td><td class="r num">${n0(p.spendShare)}%</td><td class="r num">${n0(p.purch)}${p.noval ? `<span class="muted small"> (${p.noval})</span>` : ''}</td><td class="r num">${n0(p.rev)}</td><td class="r num ${roasCls(p.roas)}">${n2(p.roas)}</td><td class="r num">${n1(p.adpct)}</td></tr>`).join('')}</tbody></table></div>`;
+  const hasBP = AM && Object.keys(AM.byProduct).length > 0;
+  $('#ovProducts').innerHTML = `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>สินค้า</th><th class="r">ใช้จ่าย</th><th class="r">งบ%</th><th class="r">ออเดอร์</th><th class="r">ยอดขาย</th><th class="r">ROAS</th><th class="r">ค่าแอด%</th>${hasBP ? '<th class="r">ยอดจริง</th><th class="r">ค่าแอดจริง%</th>' : ''}</tr></thead><tbody>
+    ${D.products.map(p => { const a = hasBP && AM.byProduct[p.name]; return `<tr><td>${esc(p.name)}</td><td class="r num">${n0(p.spend)}</td><td class="r num">${n0(p.spendShare)}%</td><td class="r num">${n0(p.purch)}${p.noval ? `<span class="muted small"> (${p.noval})</span>` : ''}</td><td class="r num">${n0(p.rev)}</td><td class="r num ${roasCls(p.roas)}">${n2(p.roas)}</td><td class="r num">${n1(p.adpct)}</td>${hasBP ? `<td class="r num">${a ? n0(a.rev) : '-'}</td><td class="r num ${a ? (a.adpct <= 20 ? 'good' : a.adpct <= 35 ? 'mid' : 'bad') : ''}">${a ? n1(a.adpct) : '-'}</td>` : ''}</tr>`; }).join('')}</tbody></table></div>`;
   const noPlace = D.places.length === 1 && !D.places[0].name;
   $('#ovPlaces').innerHTML = noPlace ? '<div class="hint">ไฟล์นี้ไม่ได้แยกตำแหน่งโฆษณา (export ระดับชุดโฆษณา) ถ้าอยากเห็น Reels เทียบฟีด ให้ export แบบมี breakdown ตำแหน่ง</div>' : `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>ตำแหน่ง</th><th class="r">ใช้จ่าย</th><th class="r">ยอดขาย</th><th class="r">ROAS</th><th class="r">CPM</th><th class="r">CTR%</th></tr></thead><tbody>
     ${D.places.slice(0, 6).map(p => `<tr><td>${esc(p.name)}</td><td class="r num">${n0(p.spend)}</td><td class="r num">${n0(p.rev)}</td><td class="r num ${roasCls(p.roas)}">${n2(p.roas)}</td><td class="r num">${n0(p.cpm)}</td><td class="r num">${n2(p.ctr)}</td></tr>`).join('')}</tbody></table></div>`;
 }
+
+$('#ovActual').addEventListener('click', e => {
+  if (!e.target.matches('#btnActualSave')) return; const D = day(); if (!D) return;
+  const num = v => v === '' ? null : Math.max(0, Number(v));
+  const act = { rev: num($('[data-actual="rev"]').value), orders: num($('[data-actual="orders"]').value), note: $('[data-actual="note"]').value.trim(), byProduct: {}, updatedAt: new Date().toISOString() };
+  document.querySelectorAll('[data-actual-prod]').forEach(i => { const n = i.dataset.actualProd; act.byProduct[n] = act.byProduct[n] || {}; act.byProduct[n][i.dataset.field] = num(i.value); });
+  for (const n of Object.keys(act.byProduct)) if (!(act.byProduct[n].rev > 0)) delete act.byProduct[n];
+  const sumBP = Object.values(act.byProduct).reduce((s, x) => s + (x.rev || 0), 0);
+  if (act.rev === null && sumBP > 0) act.rev = sumBP;
+  if (act.rev !== null && sumBP > act.rev * 1.02) { toast(`ยอดแยกสินค้ารวม ${n0(sumBP)} มากกว่ายอดรวม ${n0(act.rev)} ตรวจตัวเลขก่อน`); return; }
+  D.actual = act.rev === null ? null : act; save(KEYS.days, state.days); renderOverview(); toast(act.rev === null ? 'ล้างยอดจริงแล้ว' : 'บันทึกยอดจริงแล้ว');
+});
 
 // ---------- กรวย ----------
 function currentPlan() { const D = day(); return D ? mergePlan(D.planAuto, state.plan).layers : []; }
@@ -277,7 +315,7 @@ $('#advice').addEventListener('input', e => {
   o[parts[parts.length - 1]] = el.textContent; D.advice.editedAt = new Date().toISOString();
   save(KEYS.days, state.days); if (parts[0] === 'headline') renderOverview();
 });
-async function adviceModule() { try { return await import('./advice.js?v=20260909115720'); } catch (e) { toast('ยังไม่มีส่วนคำแนะนำ (advice.js)'); return null; } }
+async function adviceModule() { try { return await import('./advice.js?v=20260909133131'); } catch (e) { toast('ยังไม่มีส่วนคำแนะนำ (advice.js)'); return null; } }
 $('#btnAdvice').addEventListener('click', async () => {
   const D = day(); if (!D) { toast('โหลดไฟล์ก่อน'); return; }
   if (!state.settings.apiKey) { toast('ใส่ API key ในหน้าตั้งค่าก่อน'); showView('settings'); return; }
@@ -302,7 +340,7 @@ $('#btnCsv').addEventListener('click', () => {
 });
 $('#btnPng').addEventListener('click', async () => {
   const D = day(); if (!D) { toast('โหลดไฟล์ก่อน'); return; }
-  let m; try { m = await import('./sheet.js?v=20260909115720'); } catch { $('#exportMsg').textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return; }
+  let m; try { m = await import('./sheet.js?v=20260909133131'); } catch { $('#exportMsg').textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return; }
   $('#exportMsg').textContent = 'กำลังสร้างรูป...'; $('#btnPng').disabled = true;
   try { const name = await m.exportPng(D, currentPlan(), $('#sheetHost')); $('#exportMsg').textContent = `ดาวน์โหลด ${name} แล้ว`; }
   catch (e) { $('#exportMsg').textContent = 'สร้างรูปไม่ได้: ' + e.message; }
@@ -310,17 +348,19 @@ $('#btnPng').addEventListener('click', async () => {
 });
 
 // ---------- Telegram ----------
-async function tgModule() { try { return await import('./telegram.js?v=20260909115720'); } catch { toast('ยังไม่มีส่วน Telegram (telegram.js)'); return null; } }
+async function tgModule() { try { return await import('./telegram.js?v=20260909133131'); } catch { toast('ยังไม่มีส่วน Telegram (telegram.js)'); return null; } }
 function tgReady() { const S = state.settings; return !!(S.tgToken && S.tgChat); }
 function tgCaption(D) {
   const T = D.totals, A = D.advice;
   const head = (A && A.headline) || `กระดานแอด ${thDate(D.date)}`;
-  return `${head}\nใช้ ${n0(T.spend)} · ขาย ${n0(T.rev)} · ROAS ${n2(T.roas)} · ค่าแอด ${n1(T.adpct)}% · ${n0(T.purch)} ออเดอร์${T.noval ? ` (ไม่มีมูลค่า ${T.noval})` : ''}\nรายละเอียด: ${location.origin}${location.pathname}`;
+  const AM = actualMetrics(T, D.products, D.actual);
+  const actLine = AM ? `\nยอดจริง ${n0(AM.rev)} · ค่าแอดจริง ${n1(AM.adpct)}% · ROAS จริง ${n2(AM.roas)} (Meta จับได้ ${n0(AM.metaCoverage)}%)` : '';
+  return `${head}\nใช้ ${n0(T.spend)} · Meta ขาย ${n0(T.rev)} · ROAS ${n2(T.roas)} · ค่าแอด ${n1(T.adpct)}% · ${n0(T.purch)} ออเดอร์${T.noval ? ` (ไม่มีมูลค่า ${T.noval})` : ''}${actLine}\nรายละเอียด: ${location.origin}${location.pathname}`;
 }
 async function sendToTelegram(D, statusEl) {
   if (!tgReady()) { statusEl.textContent = 'ตั้งค่า bot token และกลุ่มในหน้าตั้งค่าก่อน'; showView('settings'); return false; }
   const tg = await tgModule(); if (!tg) return false;
-  let sheet; try { sheet = await import('./sheet.js?v=20260909115720'); } catch { statusEl.textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return false; }
+  let sheet; try { sheet = await import('./sheet.js?v=20260909133131'); } catch { statusEl.textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return false; }
   statusEl.textContent = 'กำลังสร้างรูปและส่ง...';
   try {
     const { blob, name } = await sheet.renderPngBlob(D, currentPlan(), $('#sheetHost'), 2);

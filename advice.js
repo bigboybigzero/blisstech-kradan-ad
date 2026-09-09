@@ -1,6 +1,6 @@
 // advice.js — ขอคำแนะนำจาก Claude จากตัวเลขที่ engine คำนวณแล้ว (Claude ไม่คำนวณเอง)
 // ใช้ @anthropic-ai/sdk ผ่าน ESM CDN โหลดเมื่อต้องใช้เท่านั้น
-import { shortCamp } from './engine.js?v=20260909115720';
+import { shortCamp, actualMetrics } from './engine.js?v=20260909133131';
 
 const SDK_URL = 'https://esm.sh/@anthropic-ai/sdk';
 let sdkPromise = null;
@@ -16,7 +16,8 @@ const SYSTEM = `คุณเป็นที่ปรึกษาการยิ�
 3. คลิปเดียวกันยิงต่างกลุ่มให้ผลต่างกันหลายเท่า เวลาคลิปไม่มียอดให้ดูกลุ่มก่อนโทษคลิป
 4. ออเดอร์ที่ไม่มีมูลค่า (noval) ต้องตรวจ tracking ก่อนตัดสิน ห้ามถือว่าขายไม่ได้
 5. เพิ่มงบทีละไม่เกิน 25% ต่อวัน รายชื่อลูกค้าเก่าชุดเดียวไม่ควรถูกยิงเกิน 3 แคมเปญพร้อมกัน
-6. ตัวเลขทุกตัวมาจากไฟล์ที่ผู้ใช้ส่งมา อ้างเฉพาะตัวเลขที่ให้ ห้ามคำนวณใหม่หรือประมาณเพิ่ม ถ้าข้อมูลไม่พอให้บอกว่าไม่พอ
+6. ถ้ามี actual (ยอดขายจริงจากระบบออเดอร์ที่ทีมกรอก) ให้ถือว่า actual คือความจริง ใช้ค่าแอดจริง/ROAS จริงตัดสินภาพรวมและงบ ส่วนตัวเลขจาก Meta ใช้เปรียบเทียบระหว่างแคมเปญเท่านั้น และให้ชี้ว่า Meta จับยอดได้กี่ % ของจริง
+7. ตัวเลขทุกตัวมาจากไฟล์ที่ผู้ใช้ส่งมา อ้างเฉพาะตัวเลขที่ให้ ห้ามคำนวณใหม่หรือประมาณเพิ่ม ถ้าข้อมูลไม่พอให้บอกว่าไม่พอ
 
 รูปแบบคำตอบ: ภาษาไทย ทุกข้อความไม่เกิน 2 ประโยค เรียกชื่อแคมเปญด้วยชื่อย่อที่ให้มา ระบุตัวเลขประกอบทุกข้อค้นพบ งานของแต่ละทีมต้องลงมือได้วันนี้/สัปดาห์นี้ ไม่ใช่คำแนะนำทั่วไป`;
 
@@ -47,7 +48,8 @@ export function buildPayload(D, prev, plan) {
   const eff = c => { const o = (D.overrides || {})[c.name] || {}; return { group: o.group || c.group, budgetNext: o.budgetNext !== undefined ? o.budgetNext : c.budgetNext }; };
   return {
     date: D.date,
-    totals: { spend: r0(T.spend), rev: r0(T.rev), roas: r2(T.roas), adpct: r2(T.adpct), orders: T.purch, ordersNoValue: T.noval, cpp: r0(T.cpp), aov: r0(T.aov) },
+    totals: { spend: r0(T.spend), metaRev: r0(T.rev), metaRoas: r2(T.roas), metaAdpct: r2(T.adpct), metaOrders: T.purch, ordersNoValue: T.noval, cpp: r0(T.cpp), aov: r0(T.aov) },
+    actual: (() => { const AM = actualMetrics(T, D.products, D.actual); return AM ? { revenue: r0(AM.rev), orders: AM.orders, roas: r2(AM.roas), adpct: r2(AM.adpct), metaCoveragePct: r0(AM.metaCoverage), byProduct: Object.fromEntries(Object.entries(AM.byProduct).map(([k, v]) => [k, { revenue: r0(v.rev), adpct: r2(v.adpct), roas: r2(v.roas) }])), note: D.actual.note || undefined } : null; })(),
     prevDay: P ? { date: prev.date, spend: r0(P.spend), rev: r0(P.rev), roas: r2(P.roas), orders: P.purch } : null,
     layers: D.layers.map(l => ({ layer: l.layer, name: l.name, spend: r0(l.spend), spendSharePct: r0(l.spendShare), reach: l.reach, cpm: r0(l.cpm), ctrPct: r2(l.ctr), orders: l.purch, ordersNoValue: l.noval, rev: r0(l.rev), revSharePct: r0(l.revShare), roas: r2(l.roas) })),
     productFunnels: D.productFunnels.map(p => ({ product: p.product, roas: r2(p.roas), adpct: r2(p.adpct), layers: p.layers.map(l => ({ layer: l.layer, status: l.status, reach: l.reach, spend: r0(l.spend), orders: l.purch, ordersNoValue: l.noval, roas: r2(l.roas), clips: l.clips.slice(0, 3), note: l.note || undefined })) })),

@@ -1,6 +1,6 @@
 // sheet.js — สร้างแผ่นสรุป 1 หน้า (โครงเดียวกับ ../รายงาน/สรุปประชุมแอด-7กย69.html) แล้วส่งออกเป็น PNG 2 เท่า
-import { stageCardsHtml } from './funnel.js?v=20260909115720';
-import { shortCamp } from './engine.js?v=20260909115720';
+import { stageCardsHtml } from './funnel.js?v=20260909133131';
+import { shortCamp, actualMetrics } from './engine.js?v=20260909133131';
 
 const H2I = 'https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.js';
 function loadScript(src) { return new Promise((ok, no) => { if (window.htmlToImage) return ok(); const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => no(new Error('โหลดตัวสร้างรูป (html-to-image) ไม่ได้ ตรวจอินเทอร์เน็ต')); document.head.appendChild(s); }); }
@@ -23,6 +23,7 @@ const CSS = `
 .sheet .kpis>div{background:#fff;padding:10px 18px;display:flex;flex-direction:column;min-width:130px}
 .sheet .kpis .v{font-family:"Bai Jamjuree";font-size:26px;font-weight:600;line-height:1.1}
 .sheet .kpis .l{font-size:12px;color:#5d687a}
+.sheet .kpis .hi{background:#e4ecfb}
 .sheet .blk{display:flex;flex-direction:column;gap:10px}
 .sheet .blk-head{display:flex;align-items:baseline;gap:10px}
 .sheet .blk-head .n{font-family:"Bai Jamjuree";font-weight:700;font-size:13px;color:#fff;background:#172033;width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}
@@ -54,6 +55,7 @@ const CSS = `
 
 export function sheetHtml(D, plan) {
   const T = D.totals, A = D.advice, L4 = D.layers.find(l => l.layer === 4) || {};
+  const AM = actualMetrics(T, D.products, D.actual);
   const eff = c => { const o = (D.overrides || {})[c.name] || {}; return { group: o.group || c.group, budgetNext: o.budgetNext !== undefined ? o.budgetNext : c.budgetNext }; };
   const go = D.campaigns.filter(c => eff(c).group === 'go'), stop = D.campaigns.filter(c => eff(c).group === 'stop'), watch = D.campaigns.filter(c => eff(c).group === 'watch');
   const gapL2 = D.productFunnels.filter(p => p.layers[1].status === 'gap').map(p => p.product);
@@ -69,7 +71,7 @@ export function sheetHtml(D, plan) {
   const watchList = (A && A.watchNextMeeting && A.watchNextMeeting.length) ? A.watchNextMeeting : [`ค่าแอดรวมต่ำกว่า 18% (วันนี้ ${(T.adpct || 0).toFixed(1)}%)`, 'ความถี่รวมของลูกค้าเก่าไม่เกิน 3 ต่อวัน'];
   return `<style>${CSS}</style><div class="sheet" id="sheet">
   <header><div class="title"><span class="eyebrow">BLISSTECH · Meta Ads · สรุปประชุม</span><h1>${esc(headline)}</h1><p class="one">${esc(one)}</p></div>
-    <div class="kpis"><div><span class="v num">${n0(T.spend)}</span><span class="l">ใช้จ่าย (บาท)</span></div><div><span class="v num">${n0(T.rev)}</span><span class="l">ยอดขาย (บาท)</span></div><div><span class="v num">${n2(T.roas)}</span><span class="l">ROAS · ค่าแอด ${(T.adpct || 0).toFixed(0)}%</span></div><div><span class="v num">${n0(T.purch)}</span><span class="l">ออเดอร์ · ${n0(T.noval)} ไม่มีมูลค่า</span></div></div></header>
+    <div class="kpis"><div><span class="v num">${n0(T.spend)}</span><span class="l">ใช้จ่าย (บาท)</span></div>${AM ? `<div class="hi"><span class="v num">${n0(AM.rev)}</span><span class="l">ยอดขายจริง · ค่าแอดจริง ${AM.adpct.toFixed(0)}%</span></div><div><span class="v num">${n0(T.rev)}</span><span class="l">Meta จับได้ (${n0(AM.metaCoverage)}%) · ROAS ${n2(T.roas)}</span></div>` : `<div><span class="v num">${n0(T.rev)}</span><span class="l">ยอดขาย (บาท)</span></div><div><span class="v num">${n2(T.roas)}</span><span class="l">ROAS · ค่าแอด ${(T.adpct || 0).toFixed(0)}%</span></div>`}<div><span class="v num">${AM && AM.orders ? n0(AM.orders) : n0(T.purch)}</span><span class="l">${AM && AM.orders ? 'ออเดอร์จริง' : `ออเดอร์ · ${n0(T.noval)} ไม่มีมูลค่า`}</span></div></div></header>
   <div class="blk"><div class="blk-head"><span class="n">1</span><h2>คนเดินทางมาซื้อผ่าน 4 ด่าน ด่านไหนทำงาน ด่านไหนรั่ว</h2><span class="hint">ตัวเลขคือ ROAS ของด่านนั้นวันนี้</span></div>
     <div class="fun">${stageCardsHtml(D.layers, D.productFunnels)}</div>
     <div class="finding"><span class="k">สิ่งที่ต้องแก้ก่อน</span><p>${esc(finding)}</p></div></div>

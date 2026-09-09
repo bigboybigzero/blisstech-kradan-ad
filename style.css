@@ -122,3 +122,8 @@ svg .c-ok{fill:var(--go)} svg .c-warn{fill:var(--watch)} svg .c-gap{fill:var(--s
 /* แผ่นสรุปสำหรับ PNG */
 #sheetHost{margin-top:20px;overflow-x:auto}
 @media(max-width:980px){.fwrap{grid-template-columns:1fr}.frows{grid-template-rows:none}.two,.planwrap,.adv{grid-template-columns:1fr}}
+
+/* ยอดจริง */
+.stat.actual{border-color:rgb(37 99 235/.35);background:rgb(37 99 235/.03)}
+.actual-card{margin-bottom:16px;border-left:4px solid #2457c5}
+.actual-card .setgrid input{margin:0}
