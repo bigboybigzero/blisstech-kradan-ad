@@ -165,7 +165,8 @@ function renderOverview() {
   $('#ovNote').innerHTML = notes.map(n => `<div class="hint">${esc(n)}</div>`).join('');
   $('#ovProducts').innerHTML = `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>สินค้า</th><th class="r">ใช้จ่าย</th><th class="r">งบ%</th><th class="r">ออเดอร์</th><th class="r">ยอดขาย</th><th class="r">ROAS</th><th class="r">ค่าแอด%</th></tr></thead><tbody>
     ${D.products.map(p => `<tr><td>${esc(p.name)}</td><td class="r num">${n0(p.spend)}</td><td class="r num">${n0(p.spendShare)}%</td><td class="r num">${n0(p.purch)}${p.noval ? `<span class="muted small"> (${p.noval})</span>` : ''}</td><td class="r num">${n0(p.rev)}</td><td class="r num ${roasCls(p.roas)}">${n2(p.roas)}</td><td class="r num">${n1(p.adpct)}</td></tr>`).join('')}</tbody></table></div>`;
-  $('#ovPlaces').innerHTML = `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>ตำแหน่ง</th><th class="r">ใช้จ่าย</th><th class="r">ยอดขาย</th><th class="r">ROAS</th><th class="r">CPM</th><th class="r">CTR%</th></tr></thead><tbody>
+  const noPlace = D.places.length === 1 && !D.places[0].name;
+  $('#ovPlaces').innerHTML = noPlace ? '<div class="hint">ไฟล์นี้ไม่ได้แยกตำแหน่งโฆษณา (export ระดับชุดโฆษณา) ถ้าอยากเห็น Reels เทียบฟีด ให้ export แบบมี breakdown ตำแหน่ง</div>' : `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>ตำแหน่ง</th><th class="r">ใช้จ่าย</th><th class="r">ยอดขาย</th><th class="r">ROAS</th><th class="r">CPM</th><th class="r">CTR%</th></tr></thead><tbody>
     ${D.places.slice(0, 6).map(p => `<tr><td>${esc(p.name)}</td><td class="r num">${n0(p.spend)}</td><td class="r num">${n0(p.rev)}</td><td class="r num ${roasCls(p.roas)}">${n2(p.roas)}</td><td class="r num">${n0(p.cpm)}</td><td class="r num">${n2(p.ctr)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
