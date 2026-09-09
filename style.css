@@ -127,3 +127,48 @@ svg .c-ok{fill:var(--go)} svg .c-warn{fill:var(--watch)} svg .c-gap{fill:var(--s
 .stat.actual{border-color:rgb(37 99 235/.35);background:rgb(37 99 235/.03)}
 .actual-card{margin-bottom:16px;border-left:4px solid #2457c5}
 .actual-card .setgrid input{margin:0}
+
+/* ===== ธีมฟ้า (ตามภาพอ้างอิง Booking Apps UI Kit) ทับค่าของ skin.css ===== */
+:root{
+  --ink:11 37 64; --muted:92 110 134; --faint:150 165 185;
+  --line:26 120 190; --surface:236 246 252; --card:255 255 255; --accent:26 159 224;
+  --sky:#1A9FE0; --sky2:#5CC8F2; --sky-soft:#E4F4FC; --sky-line:rgb(26 159 224/.25);
+  --l2:#1A9FE0; --l2-bg:#E4F4FC; --l1:#6C8FB5; --l1-bg:#E9F0F8;
+  --sh-sm:0 2px 6px rgb(26 120 190/.08),0 1px 2px rgb(26 120 190/.05);
+  --sh-md:0 10px 30px -10px rgb(26 120 190/.25),0 4px 10px -4px rgb(26 120 190/.1);
+}
+body{background:linear-gradient(180deg,#F2F9FD 0%,#E6F3FB 100%) fixed}
+.top{background:linear-gradient(120deg,var(--sky) 0%,var(--sky2) 100%);border-bottom:none;color:#fff;box-shadow:0 4px 18px -6px rgb(26 159 224/.5)}
+.top .brand b,.top .daysel .small{color:#fff}
+.top .mark{border-color:#fff;color:#fff;background:rgb(255 255 255/.15)}
+.top .chip{background:rgb(255 255 255/.18);border-color:rgb(255 255 255/.4);color:#fff}
+.top .daysel select{border-color:rgb(255 255 255/.5);background:rgb(255 255 255/.95);color:rgb(var(--ink))}
+.opnav{background:#fff;border-right:1px solid var(--sky-line)}
+.opnav-item{border-radius:14px}
+.opnav-item.on{background:linear-gradient(120deg,var(--sky),var(--sky2));box-shadow:0 6px 16px -6px rgb(26 159 224/.6)}
+.opnav-item:hover{background:var(--sky-soft)}
+.card,.stat,.prod,.pcard,table.tbl,.drop,.hint,.resolve,.warnbox{border-radius:16px}
+.card,.stat,.prod,.pcard,table.tbl{border-color:var(--sky-line)}
+.stat .v,.kpi b,.headline{color:rgb(var(--ink))}
+.stat .t,.card h3{color:rgb(var(--muted))}
+.btn,.btn-primary,.mini{border-radius:12px}
+.btn,#btnResolve,#btnActualSave,#btnAdvice,#btnPng,#btnCsv,#btnTg,#btnSaveSet{background:linear-gradient(120deg,var(--sky),var(--sky2));color:#fff;border-color:transparent;font-weight:600;box-shadow:0 6px 16px -6px rgb(26 159 224/.6)}
+.btn:hover{filter:brightness(1.05);border-color:transparent}
+.btn.danger{background:#fff;color:var(--stop);border-color:var(--stop-line);box-shadow:none}
+.mini{border-color:var(--sky-line);color:var(--sky)}
+.mini:hover{background:var(--sky-soft);border-color:var(--sky)}
+.hint{background:var(--sky-soft);border-color:var(--sky-line);color:rgb(var(--ink))}
+.headline{background:var(--sky-soft);border-left-color:var(--sky)}
+.drop{border-color:var(--sky-line);background:#fff}
+.drop.over{border-color:var(--sky);background:var(--sky-soft)}
+.linkish,.edited,.frow .new,.fcol.content h4,.pri{color:var(--sky)}
+.fcol.content h4,.pri,.zone.info{background:var(--sky-soft);border-color:var(--sky-line)}
+.actual-card{border-left-color:var(--sky)}
+.stat.actual{border-color:var(--sky-line);background:var(--sky-soft)}
+table.tbl th{background:var(--sky-soft);color:rgb(var(--muted))}
+table.tbl td{border-bottom-color:rgb(26 120 190/.08)}
+.tag-MOFU{color:var(--sky);border-color:var(--sky)}
+input:focus,textarea:focus,select:focus{border-color:var(--sky);box-shadow:0 0 0 3px rgb(26 159 224/.15)}
+.resolve{background:#fff;border-color:var(--watch-line)}
+.legend .sw.ok{background:var(--go-bg)}
+.toast{background:rgb(var(--ink))}

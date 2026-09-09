@@ -1,6 +1,6 @@
 // sheet.js — สร้างแผ่นสรุป 1 หน้า (โครงเดียวกับ ../รายงาน/สรุปประชุมแอด-7กย69.html) แล้วส่งออกเป็น PNG 2 เท่า
-import { stageCardsHtml } from './funnel.js?v=20260909133131';
-import { shortCamp, actualMetrics } from './engine.js?v=20260909133131';
+import { stageCardsHtml } from './funnel.js?v=20260909141303';
+import { shortCamp, actualMetrics } from './engine.js?v=20260909141303';
 
 const H2I = 'https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.js';
 function loadScript(src) { return new Promise((ok, no) => { if (window.htmlToImage) return ok(); const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => no(new Error('โหลดตัวสร้างรูป (html-to-image) ไม่ได้ ตรวจอินเทอร์เน็ต')); document.head.appendChild(s); }); }
@@ -23,7 +23,7 @@ const CSS = `
 .sheet .kpis>div{background:#fff;padding:10px 18px;display:flex;flex-direction:column;min-width:130px}
 .sheet .kpis .v{font-family:"Bai Jamjuree";font-size:26px;font-weight:600;line-height:1.1}
 .sheet .kpis .l{font-size:12px;color:#5d687a}
-.sheet .kpis .hi{background:#e4ecfb}
+.sheet .kpis .hi{background:#E4F4FC}
 .sheet .blk{display:flex;flex-direction:column;gap:10px}
 .sheet .blk-head{display:flex;align-items:baseline;gap:10px}
 .sheet .blk-head .n{font-family:"Bai Jamjuree";font-weight:700;font-size:13px;color:#fff;background:#172033;width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center}
@@ -41,15 +41,15 @@ const CSS = `
 .sheet .s1{background:#e6ebf4}.sheet .s2{background:#dcebf4}.sheet .s3{background:#fbebd5}.sheet .s4{background:#ddf2e8}
 .sheet .d1{background:#7a8cb0}.sheet .d2{background:#4c89b5}.sheet .d3{background:#c2781f}.sheet .d4{background:#1b7f5a}
 .sheet .ok{background:#ddf2e8;color:#1b7f5a}.sheet .warn{background:#fbeed6;color:#b8741a}.sheet .gap{background:#f8e1de;color:#b3362b}.sheet .none{background:#eef0f2;color:#5d687a}
-.sheet .finding{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center;background:#e4ecfb;border-left:4px solid #2457c5;padding:12px 16px;border-radius:0 6px 6px 0}
-.sheet .finding .k{font-family:"Bai Jamjuree";font-weight:600;font-size:16px;color:#2457c5;white-space:nowrap}
+.sheet .finding{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center;background:#E4F4FC;border-left:4px solid #1A9FE0;padding:12px 16px;border-radius:0 6px 6px 0}
+.sheet .finding .k{font-family:"Bai Jamjuree";font-weight:600;font-size:16px;color:#1A9FE0;white-space:nowrap}
 .sheet .finding p{font-size:14px}
 .sheet .teams{display:grid;grid-template-columns:1.1fr 1.3fr .9fr;gap:14px}
 .sheet .team{border:1px solid #d8dee4;border-radius:6px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
 .sheet .team h3{display:flex;align-items:center;justify-content:space-between}
 .sheet .team h3 span{font-size:12px;font-weight:600;color:#5d687a;letter-spacing:.04em;text-transform:uppercase}
 .sheet .team ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px}
-.sheet .team ol li::marker{font-family:"Bai Jamjuree";font-weight:600;color:#2457c5}
+.sheet .team ol li::marker{font-family:"Bai Jamjuree";font-weight:600;color:#1A9FE0}
 .sheet footer{display:flex;justify-content:space-between;gap:20px;padding-top:12px;border-top:1px solid #d8dee4;font-size:12.5px;color:#5d687a}
 .sheet footer b{color:#172033;font-weight:600}`;
 
