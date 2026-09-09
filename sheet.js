@@ -86,8 +86,12 @@ export function sheetHtml(D, plan) {
 /** สร้างรูปเป็น Blob PNG (ใช้ทั้งดาวน์โหลดและส่ง Telegram) */
 export async function renderPngBlob(D, plan, host, pixelRatio = 2) {
   await loadScript(H2I);
-  host.innerHTML = sheetHtml(D, plan);
-  const node = host.querySelector('#sheet');
+  // วาดในกล่องนอกจอที่มองเห็นได้เสมอ (ไม่ใช่ display:none) เพื่อให้สร้างรูปได้จากทุกหน้า
+  let stage = document.getElementById('sheetRender');
+  if (!stage) { stage = document.createElement('div'); stage.id = 'sheetRender'; stage.style.cssText = 'position:fixed;left:-20000px;top:0;width:1400px;z-index:-1;pointer-events:none'; document.body.appendChild(stage); }
+  stage.innerHTML = sheetHtml(D, plan);
+  if (host && host !== stage) host.innerHTML = sheetHtml(D, plan);
+  const node = stage.querySelector('#sheet');
   await new Promise(r => setTimeout(r, 300)); // รอฟอนต์
   const blob = await window.htmlToImage.toBlob(node, { pixelRatio, backgroundColor: '#ffffff', width: 1400, style: { margin: '0' } });
   if (!blob) throw new Error('สร้างรูปไม่สำเร็จ');
