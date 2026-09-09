@@ -1,0 +1,124 @@
+/* style.css — ส่วนเพิ่มจาก skin.css (house-style) สำหรับกระดานแอด */
+:root{
+  --go:#0f766e; --go-bg:rgb(16 185 129/.08); --go-line:rgb(16 185 129/.4);
+  --watch:#92660b; --watch-bg:rgb(234 179 8/.1); --watch-line:rgb(234 179 8/.45);
+  --stop:#b3261e; --stop-bg:rgb(220 38 38/.08); --stop-line:rgb(220 38 38/.4);
+  --none-bg:rgb(26 32 50/.05); --none-line:rgb(26 32 50/.18);
+  --l1:#7a8cb0; --l2:#4c89b5; --l3:#c2781f; --l4:#1b7f5a;
+  --l1-bg:#e6ebf4; --l2-bg:#dcebf4; --l3-bg:#fbebd5; --l4-bg:#ddf2e8;
+}
+.top .brand b{font-size:15px}
+.top .mark{font-weight:700;font-size:16px}
+.daysel select{border:1px solid rgb(var(--line)/.16);border-radius:9px;padding:6px 10px;font-size:13px;background:#fff}
+.opmain{max-width:1240px}
+.view{display:block}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.row-btns{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.r{text-align:right}
+table.tbl th.r{text-align:right}
+table.tbl td{vertical-align:top}
+.tbl-wrap{overflow-x:auto}
+.name b{display:block;font-weight:600}
+.name small{display:block;color:rgb(var(--muted));font-size:12px}
+.tag{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.03em;padding:1px 7px;border-radius:6px;border:1px solid;white-space:nowrap}
+.tag-TOFU{color:var(--l1);border-color:var(--l1)} .tag-MOFU{color:var(--l2);border-color:var(--l2)} .tag-BOFU{color:var(--l4);border-color:var(--l4)}
+.tag-โปร{color:#8a4fb0;border-color:#8a4fb0} .tag-อินฟู{color:var(--l3);border-color:var(--l3)} .tag-ภาพนิ่ง,.tag-ไม่ระบุ,.tag-อื่นๆ{color:rgb(var(--muted));border-color:rgb(var(--line)/.3)}
+.ltag{display:inline-block;font-family:"Bai Jamjuree";font-weight:600;font-size:12px;padding:1px 8px;border-radius:6px;white-space:nowrap}
+.ltag.l1{background:var(--l1-bg);color:var(--l1)} .ltag.l2{background:var(--l2-bg);color:var(--l2)} .ltag.l3{background:var(--l3-bg);color:var(--l3)} .ltag.l4{background:var(--l4-bg);color:var(--l4)}
+.good{color:var(--go);font-weight:600} .bad{color:var(--stop);font-weight:600} .mid{color:var(--watch);font-weight:600}
+
+/* โหลดไฟล์ */
+.drop{border:1.5px dashed rgb(var(--line)/.25);border-radius:14px;padding:34px;text-align:center;background:rgb(var(--card));margin-bottom:16px}
+.drop.over{border-color:rgb(var(--accent));background:rgb(37 99 235/.04)}
+.linkish{color:#1e5fa8;cursor:pointer;text-decoration:underline}
+.resolve{background:var(--watch-bg);border:1px solid var(--watch-line);border-radius:14px;padding:16px;margin:14px 0}
+.resolve h3{font-size:14px;margin-bottom:8px}
+.resolve .rowsel{display:grid;grid-template-columns:1fr 200px;gap:10px;align-items:center;padding:6px 0;border-top:1px solid rgb(var(--line)/.08);font-size:13.5px}
+.resolve select{border:1px solid rgb(var(--line)/.16);border-radius:8px;padding:6px 8px;font-size:13px;background:#fff}
+.dayrow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid rgb(var(--line)/.08);font-size:13.5px}
+.dayrow:first-child{border-top:none}
+
+/* ภาพรวม */
+.headline{font-family:"Bai Jamjuree";font-size:18px;font-weight:600;background:rgb(37 99 235/.06);border-left:4px solid #2457c5;padding:12px 16px;border-radius:0 10px 10px 0;margin-bottom:16px}
+.stat .d{font-size:12px;margin-top:4px}
+.stat .d.up{color:var(--go)} .stat .d.down{color:var(--stop)}
+.stat .sub{font-size:12px;color:rgb(var(--muted))}
+
+/* กรวย */
+.fwrap{display:grid;grid-template-columns:1fr 440px 1fr;gap:16px;align-items:start;margin-bottom:24px}
+.fcol h4{font-family:"Bai Jamjuree";font-size:13px;font-weight:600;padding:6px 10px;border-radius:8px;display:inline-block;margin-bottom:6px}
+.fcol.content h4{background:rgb(37 99 235/.08);color:#1e5fa8} .fcol.ads h4{background:var(--go-bg);color:var(--go)}
+.frows{display:grid;grid-template-rows:repeat(4,minmax(160px,auto))}
+.frow{padding:8px 10px;border-top:2px solid;display:flex;flex-direction:column;gap:3px;font-size:12.5px;line-height:1.4}
+.frow.l1{border-color:var(--l1)} .frow.l2{border-color:var(--l2)} .frow.l3{border-color:var(--l3)} .frow.l4{border-color:var(--l4)}
+.frow .k{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:rgb(var(--muted));font-weight:600}
+.frow .miss{color:var(--stop)} .frow .new{color:#1e5fa8;font-weight:600}
+svg.funnel{width:100%;height:auto;display:block;font-family:"Anuphan",sans-serif}
+svg .t{fill:rgb(var(--ink))} svg .m{fill:rgb(var(--muted))} svg .h{font-family:"Bai Jamjuree";font-weight:600}
+svg .f1{fill:var(--l1-bg);stroke:var(--l1)} svg .f2{fill:var(--l2-bg);stroke:var(--l2)} svg .f3{fill:var(--l3-bg);stroke:var(--l3)} svg .f4{fill:var(--l4-bg);stroke:var(--l4)}
+svg .s-ok{fill:var(--go-bg);stroke:var(--go)} svg .s-warn{fill:var(--watch-bg);stroke:var(--watch)} svg .s-gap{fill:var(--stop-bg);stroke:var(--stop)} svg .s-none{fill:var(--none-bg);stroke:var(--none-line);stroke-dasharray:5 3}
+svg .c-ok{fill:var(--go)} svg .c-warn{fill:var(--watch)} svg .c-gap{fill:var(--stop)} svg .c-none{fill:rgb(var(--muted))}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:rgb(var(--muted));margin-bottom:10px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:14px;height:14px;border-radius:4px;display:inline-block;border:1px solid}
+.sw.ok{background:var(--go-bg);border-color:var(--go)} .sw.warn{background:var(--watch-bg);border-color:var(--watch)} .sw.gap{background:var(--stop-bg);border-color:var(--stop)} .sw.none{background:var(--none-bg);border-color:var(--none-line)}
+.prods{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:24px}
+.prod{background:rgb(var(--card));border:1px solid rgb(var(--line)/.1);border-radius:14px;padding:14px;box-shadow:var(--sh-sm)}
+.prod h4{font-family:"Bai Jamjuree";font-size:15px;display:flex;justify-content:space-between;gap:8px;margin-bottom:6px}
+.prod h4 span{font-size:12px;color:rgb(var(--muted));font-weight:500;font-family:"Anuphan"}
+.prod .notes{font-size:12.5px;color:rgb(var(--muted));border-top:1px dashed rgb(var(--line)/.15);padding-top:8px;margin-top:6px}
+.prod .notes b{color:var(--stop);font-weight:600}
+.dupuse{font-size:12.5px;color:rgb(var(--muted))}
+.warnbox{background:var(--watch-bg);border:1px solid var(--watch-line);border-radius:12px;padding:10px 14px;font-size:13.5px;margin-bottom:8px}
+
+/* คำตัดสิน */
+.grp{margin-bottom:26px}
+.grp h3{font-family:"Bai Jamjuree";font-size:16px;display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.grp h3 .zone{font-size:12px}
+.grp .sum{font-size:13px;color:rgb(var(--muted));font-weight:400}
+.tbl select,.tbl input[type=number]{border:1px solid rgb(var(--line)/.16);border-radius:8px;padding:5px 7px;font-size:13px;background:#fff;width:auto}
+.tbl input[type=number]{width:84px;text-align:right}
+.tbl select.g-go{color:var(--go);border-color:var(--go-line);background:var(--go-bg)} .tbl select.g-watch{color:var(--watch);border-color:var(--watch-line);background:var(--watch-bg)} .tbl select.g-stop{color:var(--stop);border-color:var(--stop-line);background:var(--stop-bg)}
+.reason{font-size:12.5px;color:rgb(var(--muted))}
+.edited{font-size:11px;color:#1e5fa8}
+
+/* แผน */
+.planwrap{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.pcard{background:rgb(var(--card));border:1px solid rgb(var(--line)/.1);border-radius:14px;padding:14px;box-shadow:var(--sh-sm);border-top:3px solid}
+.pcard.l1{border-top-color:var(--l1)} .pcard.l2{border-top-color:var(--l2)} .pcard.l3{border-top-color:var(--l3)} .pcard.l4{border-top-color:var(--l4)}
+.pcard h4{font-family:"Bai Jamjuree";font-size:15px}
+.pcard .role{font-size:12.5px;color:rgb(var(--muted));margin-bottom:8px}
+.pcard .meta{font-size:12px;color:rgb(var(--muted));display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.plist h5{font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:rgb(var(--muted));margin:10px 0 4px}
+.plist ul{list-style:none}
+.plist li{display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid rgb(var(--line)/.06);font-size:13.5px}
+.plist li .txt{flex:1}
+.plist li .why{display:block;font-size:11.5px;color:rgb(var(--muted))}
+.plist li.team .txt::after{content:"ทีม";font-size:10px;color:#1e5fa8;margin-left:6px;border:1px solid #1e5fa8;border-radius:5px;padding:0 4px}
+.plist select{border:1px solid rgb(var(--line)/.16);border-radius:7px;padding:3px 6px;font-size:12px;background:#fff}
+.plist select.st-doing{background:var(--watch-bg);color:var(--watch)} .plist select.st-done{background:var(--go-bg);color:var(--go)}
+.plist .x{border:none;background:none;color:rgb(var(--faint));cursor:pointer;font-size:16px;line-height:1}
+.plist form{display:flex;gap:6px;margin-top:6px}
+.plist form input{font-size:13px;padding:6px 9px;border-radius:8px}
+.pcard textarea{margin-top:8px;font-size:13px;min-height:52px;border-radius:10px}
+
+/* คำแนะนำ */
+.adv{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.adv .card{grid-column:1/-1}
+.adv .card.half{grid-column:auto}
+.adv ul{padding-left:18px;font-size:14px}
+.adv li{margin:4px 0}
+.adv [contenteditable]{outline:none;border-radius:6px;padding:2px 4px}
+.adv [contenteditable]:focus{background:rgb(37 99 235/.06)}
+.adv .ev{font-size:12.5px;color:rgb(var(--muted))}
+
+/* ตั้งค่า */
+.setgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 16px}
+.setgrid label{margin:0}
+.setgrid input{padding:7px 10px;font-size:13.5px}
+#settings textarea{font-family:ui-monospace,Menlo,monospace;font-size:12px;min-height:110px}
+.danger{color:var(--stop);border-color:var(--stop-line)}
+
+/* แผ่นสรุปสำหรับ PNG */
+#sheetHost{margin-top:20px;overflow-x:auto}
+@media(max-width:980px){.fwrap{grid-template-columns:1fr}.frows{grid-template-rows:none}.two,.planwrap,.adv{grid-template-columns:1fr}}

@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>กระดานแอด BLISSTECH</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600&family=Bai+Jamjuree:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="skin.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="top">
+  <div class="brand"><div class="mark disp">ก</div><b class="disp">กระดานแอด BLISSTECH</b></div>
+  <span class="chip" id="chipDate">ยังไม่ได้โหลดไฟล์</span>
+  <span class="sp"></span>
+  <label class="daysel"><span class="small muted">วันที่</span> <select id="daySelect"><option value="">-</option></select></label>
+</div>
+
+<div class="opshell">
+  <nav class="opnav" id="nav">
+    <button class="opnav-item on" data-view="load"><span><b>โหลดไฟล์</b><small>Creative Reporting .xlsx</small></span></button>
+    <button class="opnav-item" data-view="overview"><span><b>ภาพรวม</b><small>KPI เทียบวันก่อน</small></span></button>
+    <button class="opnav-item" data-view="funnel"><span><b>กรวย</b><small>4 ชั้น + แยกสินค้า</small></span></button>
+    <button class="opnav-item" data-view="decisions"><span><b>คำตัดสิน</b><small>ไปต่อ / ดูภาพรวม / ปิด</small></span></button>
+    <button class="opnav-item" data-view="plan"><span><b>แผนคอนเทนต์</b><small>คลิปและกลุ่มต่อชั้น</small></span></button>
+    <button class="opnav-item" data-view="advice"><span><b>คำแนะนำ</b><small>จาก Claude</small></span></button>
+    <button class="opnav-item" data-view="export"><span><b>ส่งออก</b><small>รูป 1 หน้า · CSV</small></span></button>
+    <button class="opnav-item" data-view="settings"><span><b>ตั้งค่า</b><small>API key · เกณฑ์</small></span></button>
+  </nav>
+
+  <main class="opmain">
+    <section data-view="load" class="view">
+      <h2 class="sec-h">โหลดไฟล์รายงาน</h2>
+      <div class="hint">ไฟล์ export จาก Meta Ads ชีต "Creative Reporting" ระดับชุดโฆษณา × ตำแหน่ง (แถวแรกเป็นยอดรวม) 1 ไฟล์ = 1 วัน โหลดวันเดิมซ้ำจะแทนที่ของเดิม</div>
+      <div class="drop" id="drop">
+        <p><b>ลากไฟล์ .xlsx มาวางที่นี่</b> หรือ <label class="linkish">เลือกไฟล์<input type="file" id="fileInput" accept=".xlsx,.xls" hidden></label></p>
+        <p class="small muted" id="dropMsg"></p>
+      </div>
+      <div id="loadInfo"></div>
+      <div id="resolvePanel"></div>
+      <h3 class="sec-h">วันที่เก็บไว้ในเครื่องนี้</h3>
+      <div id="daysList" class="empty">ยังไม่มี</div>
+    </section>
+
+    <section data-view="overview" class="view hidden">
+      <h2 class="sec-h">ภาพรวม <span class="small muted" id="ovDate"></span></h2>
+      <div id="ovHeadline" class="headline hidden"></div>
+      <div class="cards" id="ovCards"></div>
+      <div id="ovNote"></div>
+      <div class="two">
+        <div><h3 class="sec-h">ตามสินค้า</h3><div id="ovProducts" class="empty">ยังไม่ได้โหลดไฟล์</div></div>
+        <div><h3 class="sec-h">ตามตำแหน่ง</h3><div id="ovPlaces" class="empty">ยังไม่ได้โหลดไฟล์</div></div>
+      </div>
+    </section>
+
+    <section data-view="funnel" class="view hidden">
+      <h2 class="sec-h">กรวย 4 ชั้น และหน้าที่ของแต่ละทีม</h2>
+      <div id="funnelMain" class="empty">ยังไม่ได้โหลดไฟล์</div>
+      <h3 class="sec-h">กรวยแยกสินค้า</h3>
+      <div class="legend"><span><i class="sw ok"></i> ทำงานได้</span><span><i class="sw warn"></i> มีแต่ผิดรูปแบบ</span><span><i class="sw gap"></i> ว่างหรือพัง</span><span><i class="sw none"></i> ไม่มีชุดโฆษณา</span></div>
+      <div id="funnelProducts" class="prods"></div>
+      <h3 class="sec-h">คลิปเดียวกัน กลุ่มต่างกัน</h3>
+      <div id="dupClips" class="empty">-</div>
+      <h3 class="sec-h">รายชื่อเดียวถูกยิงหลายแคมเปญ</h3>
+      <div id="dupAdsets" class="empty">-</div>
+    </section>
+
+    <section data-view="decisions" class="view hidden">
+      <h2 class="sec-h">คำตัดสินรายแคมเปญ</h2>
+      <div class="hint">แอปจัดกลุ่มตามเกณฑ์ในหน้าตั้งค่า เปลี่ยนกลุ่มหรืองบเสนอได้ทุกแถว การแก้จะจำไว้กับวันนั้นและใช้ในไฟล์ส่งออก</div>
+      <div id="decisions" class="empty">ยังไม่ได้โหลดไฟล์</div>
+    </section>
+
+    <section data-view="plan" class="view hidden">
+      <h2 class="sec-h">แผนคอนเทนต์และกลุ่มเป้าหมาย ต่อชั้น</h2>
+      <div class="hint">รายการที่แอปเติมให้จะคำนวณใหม่ทุกวันจากไฟล์ รายการที่ทีมพิมพ์เองและสถานะที่ติ๊กไว้จะจำข้ามวัน</div>
+      <div id="plan" class="empty">ยังไม่ได้โหลดไฟล์</div>
+    </section>
+
+    <section data-view="advice" class="view hidden">
+      <h2 class="sec-h">คำแนะนำจาก Claude</h2>
+      <div class="row-btns">
+        <button class="btn" id="btnAdvice">ขอคำแนะนำ</button>
+        <button class="btn" id="btnAdviceSample">ใช้คำแนะนำตัวอย่าง</button>
+        <span class="small muted" id="adviceStatus"></span>
+      </div>
+      <div id="advice" class="empty">ยังไม่มีคำแนะนำ</div>
+    </section>
+
+    <section data-view="export" class="view hidden">
+      <h2 class="sec-h">ส่งออก</h2>
+      <div class="cards">
+        <div class="stat"><div class="t">รูปสรุป 1 หน้า</div><p class="small muted">KPI + กรวย 4 ด่าน + งานของ 3 ทีม ส่งไลน์ได้</p><button class="btn" id="btnPng">สร้าง PNG</button></div>
+        <div class="stat"><div class="t">CSV รายแคมเปญ</div><p class="small muted">รวมกลุ่มและงบเสนอที่แก้แล้ว เปิดใน Excel ได้</p><button class="btn" id="btnCsv">ดาวน์โหลด CSV</button></div>
+      </div>
+      <p class="small muted" id="exportMsg"></p>
+      <div id="sheetHost"></div>
+    </section>
+
+    <section data-view="settings" class="view hidden">
+      <h2 class="sec-h">ตั้งค่า</h2>
+      <div id="settings"></div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<pre id="errlog" hidden></pre>
+<script>window.addEventListener('error', e => { document.getElementById('errlog').textContent += (e.message || e) + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno + '\n'; });
+window.addEventListener('unhandledrejection', e => { document.getElementById('errlog').textContent += 'rejection: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason) + '\n'; });</script>
+
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
