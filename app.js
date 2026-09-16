@@ -1,8 +1,8 @@
 // app.js — หน้าจอกระดานแอด BLISSTECH (สถานะ, localStorage, เรนเดอร์ทุกหน้า)
-import { analyze, cloneDefaults, mergePlan, diffTotals, campaignsToCsv, MULTI_PRODUCT, LAYER_NAMES, shortCamp, actualMetrics, buildJourney } from './engine.js?v=20260909161715';
-import { mainFunnelSvg, productFunnelSvg } from './funnel.js?v=20260909161715';
-import { createApi, loadPlugins } from './plugins.js?v=20260909161715';
-import * as ENGINE from './engine.js?v=20260909161715';
+import { analyze, cloneDefaults, mergePlan, diffTotals, campaignsToCsv, MULTI_PRODUCT, LAYER_NAMES, shortCamp, actualMetrics, buildJourney, buildBehaviour, buildBrief } from './engine.js?v=20260916084633';
+import { mainFunnelSvg, productFunnelSvg } from './funnel.js?v=20260916084633';
+import { createApi, loadPlugins } from './plugins.js?v=20260916084633';
+import * as ENGINE from './engine.js?v=20260916084633';
 
 // ---------- เก็บข้อมูล ----------
 const KEYS = { settings: 'kad:settings', days: 'kad:days', plan: 'kad:plan', clips: 'kad:clips', manual: 'kad:manual' };
@@ -35,7 +35,7 @@ const AB = createApi({
   setOverride: (date, name, patch) => { const D = state.days[date]; if (!D || !D.campaigns.some(c => c.name === name)) return false; D.overrides[name] = { ...(D.overrides[name] || {}), ...patch }; save(KEYS.days, state.days); renderDecisions(); return true; },
   setActual: (date, actual) => { const D = state.days[date]; if (!D) return false; D.actual = actual && actual.rev > 0 ? { ...actual, updatedAt: new Date().toISOString() } : null; save(KEYS.days, state.days); renderOverview(); return true; },
   addPlanItem: (layer, key, item) => { const layers = currentPlan(), p = layers.find(x => x.layer === layer); if (!p || !p[key]) return false; p[key].push({ ...item, source: 'team' }); savePlanFrom(layers); renderPlan(); renderFunnel(); return true; },
-  renderPngBlob: async (date) => { const D = (date ? state.days[date] : day()); if (!D) throw new Error('ยังไม่ได้โหลดไฟล์'); const m = await import('./sheet.js?v=20260909161715'); return (await m.renderPngBlob(D, currentPlan(), $('#sheetHost'))).blob; },
+  renderPngBlob: async (date) => { const D = (date ? state.days[date] : day()); if (!D) throw new Error('ยังไม่ได้โหลดไฟล์'); const m = await import('./sheet.js?v=20260916084633'); return (await m.renderPngBlob(D, currentPlan(), $('#sheetHost'))).blob; },
   onRegistryChange: () => { if (typeof renderPluginUi === 'function') renderPluginUi(); },
 });
 window.AdBoard = AB;
@@ -150,8 +150,8 @@ function commitPending() {
   const { A, fileName } = state.pending;
   const prev = state.days[A.date] || {};
   const rec = {
-    fileName, uploadedAt: new Date().toISOString(), date: A.date, totals: A.totals, campaigns: A.campaigns, adsets: A.adsets, ads: A.ads, places: A.places,
-    layers: A.layers, products: A.products, productFunnels: A.productFunnels, dupClips: A.dupClips, dupAdsets: A.dupAdsets, unresolved: A.unresolved, planAuto: A.plan, journey: A.journey, rowCount: A.rowCount,
+    fileName, uploadedAt: new Date().toISOString(), date: A.date, dateEnd: A.dateEnd, totals: A.totals, campaigns: A.campaigns, adsets: A.adsets, ads: A.ads, places: A.places,
+    layers: A.layers, products: A.products, productFunnels: A.productFunnels, dupClips: A.dupClips, dupAdsets: A.dupAdsets, unresolved: A.unresolved, planAuto: A.plan, journey: A.journey, behaviour: A.behaviour, brief: A.brief, rowCount: A.rowCount,
     overrides: prev.overrides || {}, advice: prev.advice || null,
   };
   state.days[A.date] = rec;
@@ -162,9 +162,10 @@ function commitPending() {
   state.date = A.date; state.pending = null;
   const q = new URLSearchParams(location.search); // โหมดพัฒนา
   if (q.get('sample')) adviceModule().then(m => { if (m) { rec.advice = m.sampleAdvice(rec, currentPlan()); save(KEYS.days, state.days); renderAdvice(); renderOverview(); } });
-  if (q.get('sheet')) import('./sheet.js?v=20260909161715').then(m => { $('#sheetHost').innerHTML = m.sheetHtml(rec, currentPlan()); }).catch(e => { $('#exportMsg').textContent = e.message; });
+  if (q.get('sheet')) import('./sheet.js?v=20260916084633').then(m => { $('#sheetHost').innerHTML = m.sheetHtml(rec, currentPlan()); }).catch(e => { $('#exportMsg').textContent = e.message; });
+  if (q.get('bpng')) briefPngBlob().then(r => { $('#briefMsg').textContent = 'bpng ok ' + Math.round(r.blob.size / 1024) + 'KB'; }).catch(e => { $('#briefMsg').textContent = 'bpng fail ' + e.message; });
   if (q.get('jpng')) journeyPngBlob('').then(r => { $('#journeyMsg').textContent = 'jpng ok ' + Math.round(r.blob.size / 1024) + 'KB'; }).catch(e => { $('#journeyMsg').textContent = 'jpng fail ' + e.message; });
-  if (q.get('png')) import('./sheet.js?v=20260909161715').then(m => m.exportPng(rec, currentPlan(), $('#sheetHost'), true)).then(r => { $('#exportMsg').textContent = 'png ok ' + r; }).catch(e => { $('#exportMsg').textContent = 'png fail ' + e.message; });
+  if (q.get('png')) import('./sheet.js?v=20260916084633').then(m => m.exportPng(rec, currentPlan(), $('#sheetHost'), true)).then(r => { $('#exportMsg').textContent = 'png ok ' + r; }).catch(e => { $('#exportMsg').textContent = 'png fail ' + e.message; });
   toast(`วิเคราะห์ ${thDate(A.date)} เสร็จ`);
   renderAll(); showView(autoView || 'overview'); autoView = null;
   AB.emit('day:loaded', { date: A.date, fileName });
@@ -178,9 +179,10 @@ function renderAll() {
   $('#daysList').innerHTML = dates.length ? dates.map(d => `<div class="dayrow"><span><b>${thDate(d)}</b> <span class="muted small">${esc(state.days[d].fileName)} · ${state.days[d].campaigns.length} แคมเปญ</span></span><span><button class="mini" data-open="${d}">เปิด</button> <button class="mini danger" data-del="${d}">ลบ</button></span></div>`).join('') : 'ยังไม่มี';
   applyBrand();
   const D = day();
-  $('#chipDate').textContent = D ? `ข้อมูลวันที่ ${thDate(D.date)}` : 'ยังไม่ได้โหลดไฟล์';
-  renderOverview(); renderFunnel(); renderJourney(); renderDecisions(); renderPlan(); renderAdvice(); renderSettings();
-  for (const id of ['ovProducts', 'ovPlaces', 'funnelMain', 'dupClips', 'dupAdsets', 'decisions', 'plan', 'journey']) $('#' + id).classList.toggle('empty', !D);
+  const rangeTxt = d => d.dateEnd && d.dateEnd !== d.date ? `${thDate(d.date)} ถึง ${thDate(d.dateEnd)}` : thDate(d.date);
+  $('#chipDate').textContent = D ? `ข้อมูล ${rangeTxt(D)}` : 'ยังไม่ได้โหลดไฟล์';
+  renderBrief(); renderOverview(); renderFunnel(); renderJourney(); renderBehaviour(); renderDecisions(); renderPlan(); renderAdvice(); renderSettings();
+  for (const id of ['ovProducts', 'ovPlaces', 'funnelMain', 'dupClips', 'dupAdsets', 'decisions', 'plan', 'journey', 'behaviour']) $('#' + id).classList.toggle('empty', !D);
   $('#advice').classList.toggle('empty', !(D && D.advice));
   $('#daysList').classList.toggle('empty', !dates.length);
 }
@@ -194,7 +196,7 @@ $('#daysList').addEventListener('click', e => {
 function prevDay() { if (!state.date) return null; const ds = Object.keys(state.days).sort().filter(d => d < state.date); return ds.length ? state.days[ds[ds.length - 1]] : null; }
 function renderOverview() {
   const D = day();
-  $('#ovDate').textContent = D ? thDate(D.date) : '';
+  $('#ovDate').textContent = D ? (D.dateEnd && D.dateEnd !== D.date ? `${thDate(D.date)} ถึง ${thDate(D.dateEnd)} (รวม ${Math.round((new Date(D.dateEnd) - new Date(D.date)) / 86400000) + 1} วัน)` : thDate(D.date)) : '';
   $('#ovHeadline').classList.toggle('hidden', !(D && D.advice && D.advice.headline));
   if (D && D.advice && D.advice.headline) $('#ovHeadline').textContent = D.advice.headline;
   if (!D) { $('#ovCards').innerHTML = ''; $('#ovNote').innerHTML = ''; $('#ovActual').innerHTML = ''; $('#ovProducts').textContent = 'ยังไม่ได้โหลดไฟล์'; $('#ovPlaces').textContent = 'ยังไม่ได้โหลดไฟล์'; return; }
@@ -284,6 +286,108 @@ function renderFunnel() {
     ${D.dupClips.slice(0, 8).flatMap(d => d.uses.map((u, i) => `<tr>${i === 0 ? `<td rowspan="${d.uses.length}"><b>${esc(d.name)}</b><div class="dupuse">${d.uses.length} แคมเปญ</div></td>` : ''}<td><span class="ltag l${u.layer}">${u.layer}</span> ${esc(shortCamp(u.camp))}<div class="dupuse">${esc(u.adset)}</div></td><td class="r num">${n0(u.spend)}</td><td class="r num">${n0(u.purch)}</td><td class="r num ${roasCls(u.roas)}">${n2(u.roas)}</td></tr>`)).join('')}</tbody></table></div><p class="small muted" style="margin-top:6px">คลิปเดียวกันต่างกลุ่มให้ผลต่างกันมาก เวลาคลิปไม่มียอด ให้ดูกลุ่มก่อนโทษคลิป</p>` : 'ไม่มีคลิปที่ใช้ซ้ำหลายแคมเปญ';
   $('#dupAdsets').innerHTML = D.dupAdsets.length ? D.dupAdsets.map(d => `<div class="warnbox"><b>${esc(d.name)}</b> <span class="ltag l${d.layer}">ชั้น ${d.layer}</span> ถูกยิงพร้อมกัน ${d.campaigns.length} แคมเปญ เข้าถึงรวม ${n0(d.reach)} ครั้ง คนเดียวกันอาจเห็นโฆษณาหลายตัวต่อวัน ถ้าเพิ่มงบให้เพิ่มที่ตัวเดียวและดู ROAS ของตัวอื่นว่าตกหรือไม่<div class="small muted">${d.campaigns.map(shortCamp).map(esc).join(' · ')}</div></div>`).join('') : 'ไม่มี';
 }
+
+// ---------- พฤติกรรมคนดู ----------
+function renderBehaviour() {
+  const D = day(); if (!D) { $('#behaviour').textContent = 'ยังไม่ได้โหลดไฟล์'; return; }
+  if (!D.behaviour && D.ads && D.adsets) { D.behaviour = buildBehaviour(D.ads, D.adsets); save(KEYS.days, state.days); }
+  const B = D.behaviour; if (!B) { $('#behaviour').textContent = 'ไม่มีข้อมูล'; return; }
+  const clipShort = n => String(n).replace(/^\d+\.\d+\.\d+\s*/, '').replace(/\s*\(คลิปฟรี\)/, '').trim();
+  const tags = t => t.map(x => `<span class="btag ${x}">${x}</span>`).join(' ');
+  const pct = v => v === null || v === undefined ? '-' : v.toFixed(1) + '%';
+  const sec = v => v === null || v === undefined ? '-' : v.toFixed(1) + ' วิ';
+  const money = v => v === null || v === undefined ? '-' : Math.round(v).toLocaleString('en-US');
+  const cls = (v, ok, warn, lowerBetter = false) => v === null || v === undefined ? '' : lowerBetter ? (v <= ok ? 'good' : v <= warn ? 'mid' : 'bad') : (v >= ok ? 'good' : v >= warn ? 'mid' : 'bad');
+  const R = B.rules;
+  const clipRow = c => `<tr><td class="name"><b>${esc(clipShort(c.name))}</b><small><span class="tag tag-${esc(c.stage)}">${esc(c.stage)}</span> ${esc(c.product || '')} · ชั้น ${c.layers.join(',')} ${c.role ? `· <i>${esc(c.role)}</i>` : ''}</small></td><td>${tags(c.tags)}</td><td class="r num">${money(c.spend)}</td><td class="r num ${cls(c.thruPct, R.watchThru, 5)}">${pct(c.thruPct)}</td><td class="r num ${cls(c.avgWatch, R.watchSec, 4)}">${sec(c.avgWatch)}</td><td class="r num ${cls(c.ctr, 1.5, 1)}">${c.ctr === null ? '-' : c.ctr.toFixed(2)}</td><td class="r num">${money(c.msgs)}</td><td class="r num ${cls(c.costPerMsg, R.chatCost, R.chatCostOk, true)}">${money(c.costPerMsg)}</td><td class="r num ${cls(c.costPerThru, R.thruCostOk, 3, true)}">${c.costPerThru === null ? '-' : c.costPerThru.toFixed(2)}</td><td class="r num">${money(c.purch)}${c.noval ? `<span class="muted small"> (${c.noval})</span>` : ''}</td><td class="r num ${roasCls(c.roas)}">${n2(c.roas)}</td></tr>`;
+  const head = `<thead><tr><th>คลิป</th><th>พฤติกรรม</th><th class="r">ใช้จ่าย</th><th class="r">ThruPlay</th><th class="r">เวลาดู</th><th class="r">CTR%</th><th class="r">แชท</th><th class="r">ต่อแชท</th><th class="r">ต่อThruPlay</th><th class="r">ออเดอร์</th><th class="r">ROAS</th></tr></thead>`;
+  const table = rows => `<div class="tbl-wrap"><table class="tbl">${head}<tbody>${rows.map(clipRow).join('') || '<tr><td colspan="11" class="muted">-</td></tr>'}</tbody></table></div>`;
+  const byWatch = [...B.clips].filter(c => c.thruPct !== null).sort((a, b) => b.thruPct - a.thruPct).slice(0, 10);
+  const byChat = [...B.clips].filter(c => c.costPerMsg !== null).sort((a, b) => a.costPerMsg - b.costPerMsg).slice(0, 10);
+  const bySell = [...B.clips].filter(c => c.roas !== null && c.roas >= R.buyRoas).sort((a, b) => b.roas - a.roas).slice(0, 10);
+  const audRow = a => `<tr><td><span class="ltag l${a.layer}">${a.layer}</span> <b>${esc(a.name)}</b><div class="small muted">${a.campaigns} แคมเปญ</div></td><td>${tags(a.tags)}</td><td class="r num">${money(a.spend)}</td><td class="r num ${cls(a.thruPct, R.watchThru, 5)}">${pct(a.thruPct)}</td><td class="r num ${cls(a.avgWatch, R.watchSec, 4)}">${sec(a.avgWatch)}</td><td class="r num ${cls(a.ctr, 1.5, 1)}">${a.ctr === null ? '-' : a.ctr.toFixed(2)}</td><td class="r num ${cls(a.costPerMsg, R.chatCost, R.chatCostOk, true)}">${money(a.costPerMsg)}</td><td class="r num ${roasCls(a.roas)}">${n2(a.roas)}</td><td class="reason">${esc(a.read)}</td></tr>`;
+  $('#behaviour').innerHTML = `
+    ${!B.hasVideoStats ? '<div class="warnbox">ไฟล์นี้ไม่มีคอลัมน์ ThruPlay / เวลาเล่นวิดีโอเฉลี่ย (export แบบเก่า) แสดงได้เฉพาะ CTR แชท และยอด ถ้าอยากเห็นพฤติกรรมการดู ให้ export ใหม่โดยเพิ่มคอลัมน์ "ThruPlay" "เวลาเล่นวิดีโอเฉลี่ย" "การเล่นวิดีโอที่ 100%" "ยอดดู"</div>' : ''}
+    <h3 class="sec-h">1. คลิปที่ดึงคนดูได้ดีที่สุด (เรียงตาม ThruPlay)</h3>${table(byWatch)}
+    <p class="note">คลิปให้ความรู้/แฉ/เทียบ มักอยู่บนสุด: ดูนาน ต่อ ThruPlay ถูก เหมาะสร้างกลุ่ม "คนดูจบ" ไม่ใช่ตัวปิดการขาย</p>
+    <h3 class="sec-h">2. คลิปที่ทำให้คนทักแชทถูกที่สุด (เรียงตามต่อแชท)</h3>${table(byChat)}
+    <p class="note">แชทที่เริ่มคำนวณจาก ใช้จ่าย ÷ ต้นทุนต่อแชท ที่ Meta รายงาน ส่วนแชทเหล่านี้ปิดการขายได้กี่ % ต้องดูจากระบบแชท (Pancake) ไม่ใช่จาก Meta</p>
+    <h3 class="sec-h">3. คลิปที่ขาย (ROAS ≥ ${R.buyRoas})</h3>${table(bySell)}
+    <h3 class="sec-h">4. กลุ่มเป้าหมายไหน ดู · ทัก · ซื้อ</h3>
+    <div class="tbl-wrap"><table class="tbl"><thead><tr><th>กลุ่ม (ชั้น · ส่วนแรกของชื่อชุด)</th><th>พฤติกรรม</th><th class="r">ใช้จ่าย</th><th class="r">ThruPlay</th><th class="r">เวลาดู</th><th class="r">CTR%</th><th class="r">ต่อแชท</th><th class="r">ROAS</th><th>อ่านว่า</th></tr></thead><tbody>${B.audiences.map(audRow).join('')}</tbody></table></div>
+    <p class="note">ยิ่งกลุ่มใกล้การซื้อยิ่งไม่ดูวิดีโอ คลิปยาวให้ความรู้ทำงานได้เฉพาะชั้น 1-2 ชั้นที่ใกล้ซื้อต้องการข้อเสนอที่จบใน 3 วินาทีแรก</p>
+    <h3 class="sec-h">5. กลยุทธ์: กลุ่มไหนควรเห็นคอนเทนต์แบบไหน (คลิปแนะนำเลือกจากข้อมูลวันนี้)</h3>
+    <div class="strat">${B.strategy.map(S => `<div class="scard s${S.key}"><h4>${esc(S.name)} <span>งบ ${S.share}%</span></h4>
+      <div class="sb"><span class="k">ใครเห็น</span>${esc(S.who)}</div><div class="sb"><span class="k">ตัดออก</span>${esc(S.exclude)}</div><div class="sb"><span class="k">คอนเทนต์</span>${esc(S.content)}</div>
+      <div class="sb"><span class="k">คลิปที่มีและเข้าเกณฑ์</span>${S.clips.length ? `<ul>${S.clips.map(c => `<li>${esc(clipShort(c))}</li>`).join('')}</ul>` : '<span class="bad">ยังไม่มีคลิปที่เข้าเกณฑ์ ต้องทำใหม่</span>'}</div>
+      <div class="sb"><span class="k">กลุ่มที่ใช้อยู่ตอนนี้</span>${S.audiencesNow.length ? esc(S.audiencesNow.join(' · ')) : '<span class="bad">ยังไม่มีชุดโฆษณาในชั้นนี้</span>'}</div>
+      <div class="sb"><span class="k">วัดด้วย</span>${esc(S.metric)}</div></div>`).join('')}</div>
+    <p class="note">วิธีตั้งกลุ่มเป้าหมายและแคมเปญตามตารางนี้ทีละขั้น อยู่ในไฟล์ คู่มือตั้งกรวย-4-กลุ่ม.md ในโฟลเดอร์งาน</p>`;
+}
+
+// ---------- สรุปวันนี้ (ภาษาง่าย) ----------
+function renderBrief() {
+  const D = day(); $('#brief').classList.toggle('empty', !D); if (!D) { $('#brief').textContent = 'ยังไม่ได้โหลดไฟล์'; return; }
+  if (!D.brief && D.campaigns) { D.brief = buildBrief(D.campaigns, D.totals, D.layers, D.date); save(KEYS.days, state.days); }
+  const B = D.brief; if (!B) { $('#brief').textContent = 'ไม่มีข้อมูล'; return; }
+  const K = B.kpis, over = K.adpct !== null && K.adpct > B.target;
+  const n1 = v => v.toFixed(1);
+  const layerName = { 1: 'คนใหม่', 2: 'คนดูคลิป', 3: 'คนทัก', 4: 'ลูกค้าเก่า' };
+  const row = r => `<tr class="br-${r.cls}"><td class="name"><b>${esc(r.name)}</b><small>ใช้ ${n0(r.spend)} บาท · ${layerName[r.layer] || ''}</small></td>
+    <td class="c num">${r.layer === 4 ? '-' : r.isStatic ? 'รูป' : Math.round(r.watch)}</td><td class="c num">${n1(r.ask)}</td><td class="c num">${n1(r.buy)}</td>
+    <td><span class="btag2 ${r.cls}">${esc(r.tag)}</span></td><td class="say">${esc(r.say)}</td></tr>`;
+  $('#brief').innerHTML = `
+    <div class="brief-head"><span class="small muted">วันที่ ${thDate(B.date)}</span><h3>${esc(B.top.title)}</h3></div>
+    <div class="cards">
+      <div class="stat"><div class="t">ใช้เงินไป (บาท)</div><div class="v num">${n0(K.spend)}</div></div>
+      <div class="stat"><div class="t">ได้ยอด (บาท)</div><div class="v num">${n0(K.rev)}</div><div class="sub">${n0(K.purch)} ออเดอร์</div></div>
+      <div class="stat ${over ? 'br-over' : 'br-pass'}"><div class="t">ค่าแอด</div><div class="v num">${K.adpct === null ? '-' : K.adpct.toFixed(0) + '%'}</div><div class="sub">เป้าไม่เกิน ${B.target}% ${K.adpct === null ? '' : over ? '→ เกินเป้า' : '→ ผ่าน'}</div></div>
+      <div class="stat"><div class="t">คนทักแชท</div><div class="v num">${n0(K.msgs)}</div><div class="sub">${K.costPerMsg ? 'คนละ ' + Math.round(K.costPerMsg) + ' บาท' : ''}</div></div>
+    </div>
+    <div class="brief-top"><b>เรื่องเดียวที่ต้องแก้ก่อน: ${esc(B.top.title)}</b><p>${esc(B.top.detail)}</p><p><b>ทำอะไร:</b> ${esc(B.top.action)}</p></div>
+    <h3 class="sec-h">ใครทำอะไรวันนี้</h3>
+    <div class="brief-3">
+      <div class="brief-box"><h4>ทีมแอด</h4><ol>${B.adTasks.map(t => `<li><b>${esc(t.t)}</b> ${esc(t.d)}</li>`).join('') || '<li>ไม่มีงานเร่ง</li>'}</ol></div>
+      <div class="brief-box"><h4>บอกทีมคอนเทนต์</h4><ol>${B.content.map(c => `<li><b>${esc(c.name)}</b>: คน 1,000 คน หยุดดู ${Math.round(c.watch)} ถาม ${n1(c.ask)} → ${esc(c.say)}</li>`).join('')}${B.openers.length ? `<li><b>อย่าแก้ ทำแนวนี้เพิ่ม:</b> ${esc(B.openers.join(' · '))}<small>คนถาม ${B.rules.askGood}+ ต่อ 1,000 คน = ตัวเปิดชั้นดี ที่ยังไม่มียอดเพราะไม่มีแอดตามคนถาม</small></li>` : ''}${!B.content.length && !B.openers.length ? '<li>วันนี้ไม่มีคลิปที่ต้องแก้</li>' : ''}</ol></div>
+      <div class="brief-box"><h4>ห้ามแตะ (ทำงานดีอยู่)</h4><ul>${B.keep.map(r => `<li><b>${esc(r.name)}</b><small>คน 1,000 คน ถาม ${n1(r.ask)} · ซื้อ ${n1(r.buy)} · ROAS ${n2(r.roas)}</small></li>`).join('') || '<li>ยังไม่มีตัวที่เข้าเกณฑ์</li>'}</ul></div>
+    </div>
+    <h3 class="sec-h">ทุกแคมเปญ อ่านเป็น "คน 1,000 คนเห็นโฆษณา"</h3>
+    <div class="hint">3 คำถาม: <b>หยุดดู</b>กี่คน (ดูถึง 15 วิ) → <b>ถาม</b>กี่คน (ทักแชท) → <b>ซื้อ</b>กี่คน · ดี = หยุดดู ${B.rules.watchGood}+ · ถาม ${B.rules.askGood}+ · ตกข้อ 1 = แก้คลิป · ตกข้อ 2 = แก้ราคา/คำชวนท้ายคลิป · ตกข้อ 3 = แอดมิน + แอดตามคนทัก ไม่ใช่คลิป · ลูกค้าเก่าไม่ดูคลิป ดูแค่ซื้อ</div>
+    <div class="tbl-wrap"><table class="tbl brief-tbl"><thead><tr><th>แคมเปญ</th><th class="c">หยุดดู</th><th class="c">ถาม</th><th class="c">ซื้อ</th><th>ป้าย</th><th>ทำอะไร</th></tr></thead><tbody>${B.rows.map(row).join('')}</tbody></table></div>
+    <p class="note">ตัวเลขทั้งหมดต่อคน 1,000 คนที่เห็นโฆษณา · "เพิ่งเริ่มวันนี้" ยังไม่ตัดสิน · ตารางนี้ยังไม่แทนหน้า "คำตัดสิน" ซึ่งดูงบและ ROAS ละเอียดกว่า</p>`;
+}
+
+async function briefPngBlob() {
+  const D = day(); if (!D || !D.brief) throw new Error('โหลดไฟล์ก่อน');
+  if (!window.htmlToImage) await new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.js'; sc.onload = ok; sc.onerror = () => no(new Error('โหลดตัวสร้างรูปไม่ได้ ตรวจอินเทอร์เน็ต')); document.head.appendChild(sc); });
+  let stage = document.getElementById('briefRender');
+  if (!stage) { stage = document.createElement('div'); stage.id = 'briefRender'; stage.style.cssText = 'position:fixed;left:-30000px;top:0;width:1400px;z-index:-1;pointer-events:none'; document.body.appendChild(stage); }
+  const AMname = state.settings.appName || 'BLISSTECH AdBoard';
+  stage.innerHTML = `<div id="briefSheet" style="width:1400px;background:#F2F9FD;padding:24px;box-sizing:border-box"><div style="font-size:13px;color:#33475e;margin-bottom:6px">${esc(AMname)} · สรุปวันนี้</div>${$('#brief').innerHTML}</div>`;
+  await new Promise(r => setTimeout(r, 250));
+  const blob = await window.htmlToImage.toBlob(stage.querySelector('#briefSheet'), { pixelRatio: 1.5, backgroundColor: '#F2F9FD' });
+  if (!blob) throw new Error('สร้างรูปไม่สำเร็จ');
+  return { blob, name: `brief-${D.date}.png` };
+}
+$('#btnBriefPng').addEventListener('click', async () => {
+  const msg = $('#briefMsg'); $('#btnBriefPng').disabled = true; msg.textContent = 'กำลังสร้างรูป...';
+  try { const { blob, name } = await briefPngBlob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 10000); msg.textContent = `ดาวน์โหลด ${name} แล้ว (${Math.round(blob.size / 1024)} KB)`; }
+  catch (e) { msg.textContent = 'ไม่สำเร็จ: ' + e.message; } finally { $('#btnBriefPng').disabled = false; }
+});
+$('#btnBriefTg').addEventListener('click', async () => {
+  const msg = $('#briefMsg'); const D = day(); if (!D || !D.brief) { msg.textContent = 'โหลดไฟล์ก่อน'; return; }
+  if (!tgReady()) { msg.textContent = 'ตั้งค่า Telegram ในหน้าตั้งค่าก่อน'; showView('settings'); return; }
+  $('#btnBriefTg').disabled = true; msg.textContent = 'กำลังสร้างรูปและส่ง...';
+  try {
+    const tg = await tgModule(); const S = state.settings; const B = D.brief, K = B.kpis;
+    const { blob, name } = await briefPngBlob();
+    const caption = `สรุปวันนี้ ${thDate(D.date)}: ${B.top.title}\nใช้ ${n0(K.spend)} · ยอด ${n0(K.rev)} · ค่าแอด ${K.adpct === null ? '-' : K.adpct.toFixed(0) + '%'} · คนทัก ${n0(K.msgs)}\nทำอะไร: ${B.top.action}\n${location.origin}${location.pathname}#/brief`;
+    let id;
+    try { id = S.tgAsFile ? await tg.sendDocument(S.tgToken, S.tgChat, blob, name, caption) : await tg.sendPhoto(S.tgToken, S.tgChat, blob, caption, name); }
+    catch (e) { if (/dimension|too big|PHOTO/i.test(e.message)) id = await tg.sendDocument(S.tgToken, S.tgChat, blob, name, caption); else throw e; }
+    msg.textContent = `ส่งเข้ากลุ่มแล้ว (ข้อความ #${id})`; toast('ส่งสรุปวันนี้เข้า Telegram แล้ว'); AB.emit('export:sent', { target: 'telegram-brief', date: D.date, messageId: id });
+  } catch (e) { msg.textContent = 'ไม่สำเร็จ: ' + e.message; } finally { $('#btnBriefTg').disabled = false; }
+});
 
 // ---------- ผังคอนเทนต์ ----------
 function renderJourney() {
@@ -432,7 +536,7 @@ $('#advice').addEventListener('input', e => {
   o[parts[parts.length - 1]] = el.textContent; D.advice.editedAt = new Date().toISOString();
   save(KEYS.days, state.days); if (parts[0] === 'headline') renderOverview();
 });
-async function adviceModule() { try { return await import('./advice.js?v=20260909161715'); } catch (e) { toast('ยังไม่มีส่วนคำแนะนำ (advice.js)'); return null; } }
+async function adviceModule() { try { return await import('./advice.js?v=20260916084633'); } catch (e) { toast('ยังไม่มีส่วนคำแนะนำ (advice.js)'); return null; } }
 $('#btnAdvice').addEventListener('click', async () => {
   const D = day(); if (!D) { toast('โหลดไฟล์ก่อน'); return; }
   if (!state.settings.apiKey) { toast('ใส่ API key ในหน้าตั้งค่าก่อน'); showView('settings'); return; }
@@ -457,7 +561,7 @@ $('#btnCsv').addEventListener('click', () => {
 });
 $('#btnPng').addEventListener('click', async () => {
   const D = day(); if (!D) { toast('โหลดไฟล์ก่อน'); return; }
-  let m; try { m = await import('./sheet.js?v=20260909161715'); } catch { $('#exportMsg').textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return; }
+  let m; try { m = await import('./sheet.js?v=20260916084633'); } catch { $('#exportMsg').textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return; }
   $('#exportMsg').textContent = 'กำลังสร้างรูป...'; $('#btnPng').disabled = true;
   try { const name = await m.exportPng(D, currentPlan(), $('#sheetHost')); $('#exportMsg').textContent = `ดาวน์โหลด ${name} แล้ว`; }
   catch (e) { $('#exportMsg').textContent = 'สร้างรูปไม่ได้: ' + e.message; }
@@ -465,7 +569,7 @@ $('#btnPng').addEventListener('click', async () => {
 });
 
 // ---------- Telegram ----------
-async function tgModule() { try { return await import('./telegram.js?v=20260909161715'); } catch { toast('ยังไม่มีส่วน Telegram (telegram.js)'); return null; } }
+async function tgModule() { try { return await import('./telegram.js?v=20260916084633'); } catch { toast('ยังไม่มีส่วน Telegram (telegram.js)'); return null; } }
 function tgReady() { const S = state.settings; return !!(S.tgToken && S.tgChat); }
 function tgCaption(D) {
   const T = D.totals, A = D.advice;
@@ -477,7 +581,7 @@ function tgCaption(D) {
 async function sendToTelegram(D, statusEl) {
   if (!tgReady()) { statusEl.textContent = 'ตั้งค่า bot token และกลุ่มในหน้าตั้งค่าก่อน'; showView('settings'); return false; }
   const tg = await tgModule(); if (!tg) return false;
-  let sheet; try { sheet = await import('./sheet.js?v=20260909161715'); } catch { statusEl.textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return false; }
+  let sheet; try { sheet = await import('./sheet.js?v=20260916084633'); } catch { statusEl.textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return false; }
   statusEl.textContent = 'กำลังสร้างรูปและส่ง...';
   try {
     const { blob, name } = await sheet.renderPngBlob(D, currentPlan(), $('#sheetHost'), 2);
@@ -621,6 +725,7 @@ renderAll();
 // โหมดพัฒนา: ?keytest=<key> ทดสอบเส้นทาง SDK + ข้อความ error โดยไม่ต้องกดปุ่ม
 { const kt = new URLSearchParams(location.search).get('keytest'); if (kt) adviceModule().then(m => m && m.testKey(kt, state.settings.model)).then(r => { $('#exportMsg').textContent = 'keytest ok: ' + r; }).catch(e => { $('#exportMsg').textContent = 'keytest err: ' + e.message; }); }
 { const tt = new URLSearchParams(location.search).get('tgtest'); if (tt) tgModule().then(m => m && m.getMe(tt)).then(r => { $('#exportMsg').textContent = 'tgtest ok: ' + r; }).catch(e => { $('#exportMsg').textContent = 'tgtest err: ' + e.message; }); }
+{ const st = new URLSearchParams(location.search).get('scrollto'); if (st) setTimeout(() => { const el = document.querySelector('.' + st); if (el) el.scrollIntoView(); }, 1500); }
 const hashView = () => location.hash.replace(/^#\/?/, '');
 showView(hashView() || (state.date ? 'overview' : 'load'));
 // โหมดพัฒนา: ?auto=<path.xlsx> โหลดไฟล์อัตโนมัติ (ใช้กับ python -m http.server หรือ --allow-file-access-from-files)

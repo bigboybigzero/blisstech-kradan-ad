@@ -20,9 +20,11 @@
 <div class="opshell">
   <nav class="opnav" id="nav">
     <button class="opnav-item on" data-view="load"><span><b>โหลดไฟล์</b><small>Creative Reporting .xlsx</small></span></button>
+    <button class="opnav-item" data-view="brief"><span><b>สรุปวันนี้</b><small>ภาษาง่าย ใครทำอะไร</small></span></button>
     <button class="opnav-item" data-view="overview"><span><b>ภาพรวม</b><small>KPI เทียบวันก่อน</small></span></button>
     <button class="opnav-item" data-view="funnel"><span><b>กรวย</b><small>4 ชั้น + แยกสินค้า</small></span></button>
     <button class="opnav-item" data-view="journey"><span><b>ผังคอนเทนต์</b><small>ใครเห็นคลิปอะไร ต่อด้วยอะไร</small></span></button>
+    <button class="opnav-item" data-view="behaviour"><span><b>พฤติกรรมคนดู</b><small>คลิปไหนดู ทัก ซื้อ · กลุ่มไหนดูวิดีโอ</small></span></button>
     <button class="opnav-item" data-view="decisions"><span><b>คำตัดสิน</b><small>ไปต่อ / ดูภาพรวม / ปิด</small></span></button>
     <button class="opnav-item" data-view="plan"><span><b>แผนคอนเทนต์</b><small>คลิปและกลุ่มต่อชั้น</small></span></button>
     <button class="opnav-item" data-view="advice"><span><b>คำแนะนำ</b><small>จาก Claude</small></span></button>
@@ -43,6 +45,12 @@
       <div id="resolvePanel"></div>
       <h3 class="sec-h">วันที่เก็บไว้ในเครื่องนี้</h3>
       <div id="daysList" class="empty">ยังไม่มี</div>
+    </section>
+
+    <section data-view="brief" class="view hidden">
+      <h2 class="sec-h">สรุปวันนี้: เรื่องเดียวที่ต้องแก้ ใครทำอะไร และทุกแคมเปญเป็นคน 1,000 คน</h2>
+      <div class="row-btns"><button class="btn" id="btnBriefPng">ดาวน์โหลดรูป</button><button class="btn" id="btnBriefTg">ส่งเข้า Telegram</button><span class="small muted" id="briefMsg"></span></div>
+      <div id="brief" class="empty">ยังไม่ได้โหลดไฟล์</div>
     </section>
 
     <section data-view="overview" class="view hidden">
@@ -79,6 +87,11 @@
         <span class="small muted" id="journeyMsg"></span>
       </div>
       <div id="journey" class="empty">ยังไม่ได้โหลดไฟล์</div>
+    </section>
+    <section data-view="behaviour" class="view hidden">
+      <h2 class="sec-h">พฤติกรรมคนดู: คลิปไหนดึงคนดู คลิปไหนทำให้ทัก กลุ่มไหนดูวิดีโอ</h2>
+      <div class="hint">ใช้เมื่อยอดซื้อจาก Meta เชื่อไม่ได้เต็มที่ วัดคลิปจาก <b>ThruPlay</b> (ดูถึง 15 วิหรือจบ ต่อครั้งที่เล่น) <b>เวลาดูเฉลี่ย</b> <b>CTR</b> <b>แชทที่เริ่ม</b> (= ใช้จ่าย ÷ ต้นทุนต่อแชท) และ <b>ต่อ ThruPlay</b> ป้าย: <span class="btag ดู">ดู</span> ThruPlay ≥ 8% หรือดู ≥ 6 วิ · <span class="btag ทัก">ทัก</span> แชทละ ≤ 20 บาท · <span class="btag ซื้อ">ซื้อ</span> ROAS ≥ 4</div>
+      <div id="behaviour" class="empty">ยังไม่ได้โหลดไฟล์</div>
     </section>
     <section data-view="decisions" class="view hidden">
       <h2 class="sec-h">คำตัดสินรายแคมเปญ</h2>
@@ -127,6 +140,6 @@
 window.addEventListener('unhandledrejection', e => { document.getElementById('errlog').textContent += 'rejection: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason) + '\n'; });</script>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script type="module" src="app.js?v=20260909161715"></script>
+<script type="module" src="app.js?v=20260916084633"></script>
 </body>
 </html>

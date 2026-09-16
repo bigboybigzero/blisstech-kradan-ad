@@ -10,9 +10,11 @@ export const COLS = {
   'การเล่นวิดีโอที่ 75%': 'v75', 'การเล่นวิดีโอที่ 95%': 'v95', 'การมีส่วนร่วมกับโพสต์': 'eng',
   'ประเภทผลลัพธ์': 'rtype', 'ผลลัพธ์': 'result', 'ความถี่': 'freq',
   'เริ่มการรายงาน': 'dateStart', 'สิ้นสุดการรายงาน': 'dateEnd',
+  'ThruPlay': 'thru', 'การเล่นวิดีโอที่ 100%': 'v100', 'เวลาเล่นวิดีโอเฉลี่ย': 'avgt', 'ยอดดู': 'views',
+  'ความคิดเห็นต่อโพสต์': 'comments', 'จำนวนการแชร์โพสต์': 'shares', 'ต้นทุนต่อการเริ่มการสนทนาผ่านการส่งข้อความ': 'cpmsg',
 };
 const REQUIRED = ['camp', 'adset', 'ad', 'spend', 'purch', 'rev', 'imp', 'reach'];
-const NUM = ['reach', 'imp', 'spend', 'purch', 'rev', 'clicks', 'vplay', 'v50', 'v75', 'v95', 'eng', 'result', 'freq'];
+const NUM = ['reach', 'imp', 'spend', 'purch', 'rev', 'clicks', 'vplay', 'v50', 'v75', 'v95', 'eng', 'result', 'freq', 'thru', 'v100', 'avgt', 'views', 'comments', 'shares', 'cpmsg'];
 
 export const LAYER_NAMES = { 1: 'หว่าน/คนใหม่', 2: 'คนดูคลิป/มีส่วนร่วม', 3: 'คนคุย', 4: 'ลูกค้าเก่า' };
 export const LAYER_ROLES = {
@@ -61,7 +63,7 @@ export const DEFAULT_SETTINGS = {
     { stage: 'ภาพนิ่ง', regex: '^\\s*(รุป|รูป|ภาพ)' },
   ],
   layerPatterns: [
-    { layer: 4, regex: 'คนซื้อก่อน|คนซื้อทั้งหมด' },
+    { layer: 4, regex: 'คนซื้อ' },
     { layer: 3, regex: 'คุย|INBOX 656' },
     { layer: 2, regex: 'คนดู|VDO View|ENG\\+INBOX' },
   ],
@@ -115,6 +117,8 @@ export function normalizeRows(rows) {
     for (const k of ['camp', 'adset', 'ad', 'place', 'status', 'rtype']) o[k] = str(o[k]);
     o.dateStart = dateStr(o.dateStart); o.dateEnd = dateStr(o.dateEnd);
     o.noval = (o.purch > 0 && o.rev === null) ? o.purch : 0;
+    o.msgs = (o.cpmsg > 0 && o.spend > 0) ? o.spend / o.cpmsg : 0;   // จำนวนแชทที่เริ่ม = ใช้จ่าย ÷ ต้นทุนต่อแชท
+    if (o.v95 === null && o.v100 !== null) o.v95 = o.v100;            // ไฟล์แบบใหม่ไม่มี 95% ใช้ 100% แทน
     return o;
   });
   const totalRow = out.find(r => !r.camp && !r.adset && !r.ad && r.spend !== null);
@@ -136,7 +140,9 @@ export function classifyStage(ad, settings, clips) {
   return null;
 }
 export function classifyLayer(adset, settings) {
-  for (const p of settings.layerPatterns) if (rx(p.regex).test(adset)) return p.layer;
+  // ตัดส่วน "Ex คนซื้อ..." (กลุ่มที่ยกเว้น) ออกก่อน ไม่งั้นชุดรีทาร์เก็ตคนดูที่ยกเว้นคนซื้อจะกลายเป็นชั้น 4
+  const a = String(adset || '').replace(/\/?\s*ex\s*คนซื้อ[^/]*/gi, '');
+  for (const p of settings.layerPatterns) if (rx(p.regex).test(a)) return p.layer;
   return 1;
 }
 export function parseBudget(camp) {
@@ -151,7 +157,7 @@ function metrics(rows) {
   const reach = sum(rows, 'reach'), clicks = sum(rows, 'clicks'), v50 = sum(rows, 'v50'), v95 = sum(rows, 'v95');
   return {
     spend, rev, purch, imp, reach, clicks, v50, v95,
-    noval: sum(rows, 'noval'), eng: sum(rows, 'eng'),
+    noval: sum(rows, 'noval'), eng: sum(rows, 'eng'), vplay: sum(rows, 'vplay'),
     roas: spend > 0 ? rev / spend : null,
     adpct: rev > 0 ? spend / rev * 100 : null,
     cpp: purch > 0 ? spend / purch : null,
@@ -159,10 +165,19 @@ function metrics(rows) {
     ctr: imp > 0 ? clicks / imp * 100 : null,
     v50pct: imp > 0 ? v50 / imp * 100 : null,
     freq: reach > 0 ? imp / reach : null,
+    // พฤติกรรมคนดู (ไฟล์เก่าไม่มีคอลัมน์เหล่านี้ → null)
+    thru: sum(rows, 'thru'), v100: sum(rows, 'v100'), views: sum(rows, 'views'), comments: sum(rows, 'comments'), shares: sum(rows, 'shares'), msgs: sum(rows, 'msgs'),
+    thruPct: hasAny(rows, 'thru') && vplaySum(rows) >= 100 ? sum(rows, 'thru') / vplaySum(rows) * 100 : null,   // ภาพนิ่งเล่นวิดีโอไม่ถึง 100 ครั้ง ไม่คิด
+    v100Pct: hasAny(rows, 'v100') && vplaySum(rows) >= 100 ? sum(rows, 'v100') / vplaySum(rows) * 100 : null,
+    avgWatch: hasAny(rows, 'avgt') && vplaySum(rows) >= 100 ? rows.reduce((t, r) => t + (r.avgt || 0) * (r.vplay || 0), 0) / vplaySum(rows) : null,
+    costPerMsg: sum(rows, 'msgs') > 0 ? spend / sum(rows, 'msgs') : null,
+    costPerThru: sum(rows, 'thru') >= 10 ? spend / sum(rows, 'thru') : null,   // ภาพนิ่งมี ThruPlay 0-2 ครั้ง ไม่คิด
     rows: rows.length,
     active: rows.filter(r => r.status === 'active').length,
   };
 }
+function hasAny(rows, k) { return rows.some(r => r[k] !== null && r[k] !== undefined); }
+function vplaySum(rows) { return sum(rows, 'vplay'); }
 function groupBy(rows, keyFn) {
   const m = new Map();
   for (const r of rows) { const k = keyFn(r); if (!m.has(k)) m.set(k, []); m.get(k).push(r); }
@@ -220,6 +235,7 @@ export function analyze(rows, settings = DEFAULT_SETTINGS, clips = [], manual = 
     Object.assign(r, parseBudget(r.camp));
   }
   const date = (data[0] && data[0].dateStart) || (totalRow && totalRow.dateStart) || '';
+  const dateEnd = (data[0] && data[0].dateEnd) || (totalRow && totalRow.dateEnd) || date;
 
   // แคมเปญ
   const campaigns = [...groupBy(data, r => r.camp)].map(([name, rs]) => {
@@ -310,9 +326,11 @@ export function analyze(rows, settings = DEFAULT_SETTINGS, clips = [], manual = 
     .sort((a, b) => b.campaigns.length - a.campaigns.length);
 
   const plan = buildPlan({ data, layers, productFunnels, adsets, campaigns }, S);
+  const brief = buildBrief(campaigns, totals, layers, date);
   const journey = buildJourney(ads, adsets, productFunnels.map(p => p.product));
+  const behaviour = buildBehaviour(ads, adsets);
 
-  return { date, totals, campaigns, adsets, ads, places, layers, products, productFunnels, dupClips, dupAdsets, unresolved, plan, journey, rowCount: data.length };
+  return { date, dateEnd, totals, campaigns, adsets, ads, places, layers, products, productFunnels, dupClips, dupAdsets, unresolved, plan, journey, behaviour, brief, rowCount: data.length };
 }
 
 // ---------- แผนคอนเทนต์และกลุ่มเป้าหมาย (auto) ----------
@@ -433,7 +451,141 @@ export function buildJourney(ads, adsets, productNames) {
   });
 }
 
+// ---------- พฤติกรรมคนดู: คลิป × กลุ่ม (ใช้เมื่อยอดซื้อจาก Meta เชื่อไม่ได้) ----------
+export const BEHAVIOUR_RULES = { minSpend: 300, watchThru: 8, watchSec: 6, chatCost: 20, chatCostOk: 40, buyRoas: 4, thruCostOk: 1 };
+export const STRATEGY = [
+  { key: 'A', name: 'A คนใหม่ (ตัวเปิด)', who: 'หว่าน · ความสนใจ "โทรศัพท์" · Lookalike คนซื้อ', exclude: 'ซื้อแล้ว 30 วัน · ทักแชท 3 วัน · คนดูคลิปเปิดจบ (ThruPlay) 14 วัน', content: 'ตัวเปิด ตลก-รีวิว-ปัญหาที่คนมี และคลิปแฉที่คนดูนาน', metric: 'ต่อ ThruPlay ≤ 1 บาท · ต่อแชท ≤ 20 · ThruPlay ≥ 8% · ไม่วัด ROAS', share: 30 },
+  { key: 'B', name: 'B ดูจบแล้วยังไม่ซื้อ (คลายกังวล)', who: 'ThruPlay ของคลิปเปิด 14 วัน · ENG+INBOX 14 วัน (แยกสินค้า)', exclude: 'ซื้อแล้ว 30 วัน · ทักแชท 3 วัน', content: 'ของแท้-ปลอม · เทียบรุ่น · คืนเงิน · ใช้กับรุ่นไหน · ทดสอบให้ดู', metric: 'CTR ≥ 1.5% · ต่อแชท ≤ 40 · ROAS ≥ 3', share: 25 },
+  { key: 'C', name: 'C ทักแล้วเงียบ (ไล่ปิด)', who: 'ทักแชท 7-30 วัน', exclude: 'ซื้อแล้ว 30 วัน · ทักแชท 3 วัน', content: 'ไม่ใช่วิดีโอยาว: การ์ดคำถามที่ถามบ่อย · โปรเฉพาะคนทัก · แอดมินตามแชท', metric: 'ต้นทุนต่อออเดอร์จริง ≤ 100 (MINI) / 200 (D5, D1)', share: 10 },
+  { key: 'D', name: 'D ลูกค้าเก่า (ซื้อเพิ่ม/ขายข้าม)', who: 'รายชื่อคนซื้อ แยกตามสินค้าที่ซื้อ', exclude: 'ซื้อแล้ว 30 วัน · ไม่เกิน 2 แคมเปญต่อรายชื่อ', content: 'ข้อเสนอที่จบใน 3 วินาที: ซื้อเพิ่ม · เลิกย้าย · ขายข้าม · โปรลูกค้าเก่า', metric: 'ROAS ≥ 5 · ความถี่ ≤ 3/วัน', share: 35 },
+];
+const behTags = (m, R) => {
+  const t = [];
+  if ((m.thruPct !== null && m.thruPct >= R.watchThru) || (m.avgWatch !== null && m.avgWatch >= R.watchSec)) t.push('ดู');
+  if (m.costPerMsg !== null && m.costPerMsg <= R.chatCost) t.push('ทัก');
+  if (m.roas !== null && m.roas >= R.buyRoas) t.push('ซื้อ');
+  return t;
+};
+/** คืน { hasVideoStats, clips:[...], audiences:[...], strategy:[...] } */
+export function buildBehaviour(ads, adsets, rules = BEHAVIOUR_RULES) {
+  const R = rules;
+  const hasVideoStats = ads.some(a => a.thruPct !== null || a.avgWatch !== null);
+  const hasMsgStats = ads.some(a => a.msgs > 0);
+  // รวมคลิปชื่อเดียวกันข้ามแคมเปญ (แต่เก็บกลุ่มที่ยิง)
+  const byClip = new Map();
+  for (const a of ads) {
+    if (!byClip.has(a.name)) byClip.set(a.name, { name: a.name, stage: a.stage, product: a.product, rows: [], layers: new Set() });
+    const c = byClip.get(a.name); c.rows.push(a); c.layers.add(a.layer);
+  }
+  const clips = [...byClip.values()].map(c => {
+    const sp = c.rows.reduce((t, r) => t + r.spend, 0);
+    const w = k => c.rows.reduce((t, r) => t + (r[k] || 0), 0);
+    const vp = w('vplay'), thru = w('thru'), msgs = w('msgs'), rev = w('rev'), purch = w('purch'), imp = w('imp');
+    const m = { name: c.name, stage: c.stage || 'ไม่ระบุ', product: c.product, layers: [...c.layers].sort(), spend: sp, reach: w('reach'), views: w('views'),
+      thruPct: thru > 0 && vp >= 100 ? thru / vp * 100 : null, v100Pct: w('v100') > 0 && vp >= 100 ? w('v100') / vp * 100 : null,
+      avgWatch: vp >= 100 && c.rows.some(r => r.avgWatch !== null) ? c.rows.reduce((t, r) => t + (r.avgWatch || 0) * (r.vplay || 0), 0) / vp : null,
+      ctr: imp > 0 ? w('clicks') / imp * 100 : null, msgs, costPerMsg: msgs > 0 ? sp / msgs : null, costPerThru: thru >= 10 ? sp / thru : null,
+      comments: w('comments'), shares: w('shares'), purch, noval: w('noval'), rev, roas: sp > 0 ? rev / sp : null, cpp: purch > 0 ? sp / purch : null };
+    m.tags = behTags(m, R);
+    m.role = (m.tags.includes('ดู') && (m.costPerThru === null || m.costPerThru <= R.thruCostOk)) ? 'ตัวเปิด/ให้ความรู้' : m.tags.includes('ซื้อ') ? 'ตัวปิด' : m.tags.includes('ทัก') ? 'ตัวเรียกแชท' : '';
+    return m;
+  }).filter(c => c.spend >= R.minSpend).sort((a, b) => b.spend - a.spend);
+  // กลุ่มเป้าหมาย: ส่วนแรกของชื่อชุด × ชั้น
+  const core = n => String(n).split('/')[0].trim();
+  const byAud = new Map();
+  for (const a of adsets) { const k = a.layer + '|' + core(a.name); if (!byAud.has(k)) byAud.set(k, { layer: a.layer, name: core(a.name), rows: [], camps: new Set() }); byAud.get(k).rows.push(a); byAud.get(k).camps.add(a.camp); }
+  const audiences = [...byAud.values()].map(g => {
+    const w = k => g.rows.reduce((t, r) => t + (r[k] || 0), 0);
+    const sp = w('spend'), vp = w('vplay'), thru = w('thru'), msgs = w('msgs'), rev = w('rev'), imp = w('imp'), purch = w('purch');
+    const m = { layer: g.layer, name: g.name, campaigns: g.camps.size, spend: sp, reach: w('reach'),
+      thruPct: thru > 0 && vp >= 100 ? thru / vp * 100 : null, avgWatch: vp >= 100 && g.rows.some(r => r.avgWatch !== null) ? g.rows.reduce((t, r) => t + (r.avgWatch || 0) * (r.vplay || 0), 0) / vp : null,
+      ctr: imp > 0 ? w('clicks') / imp * 100 : null, msgs, costPerMsg: msgs > 0 ? sp / msgs : null, purch, rev, roas: sp > 0 ? rev / sp : null };
+    m.tags = behTags(m, R);
+    m.read = m.tags.includes('ซื้อ') && !m.tags.includes('ดู') ? 'ไม่ดูคลิป แต่ซื้อ → ให้ข้อเสนอสั้น' : m.tags.includes('ดู') && m.tags.includes('ทัก') && !m.tags.includes('ซื้อ') ? 'ดูและทัก แต่ยังไม่ซื้อ → ป้อนต่อด้วยคลิปคลายกังวล' : m.tags.includes('ดู') && m.tags.includes('ซื้อ') ? 'ดูและซื้อ → กลุ่มที่ดีที่สุด เพิ่มงบได้' : m.tags.length === 0 ? 'ไม่ดู ไม่ทัก ไม่ซื้อ → คอนเทนต์ไม่ตรงกลุ่ม หรือกลุ่มล้า' : m.tags.join(' ');
+    return m;
+  }).filter(a => a.spend >= R.minSpend).sort((a, b) => b.spend - a.spend);
+  // กลยุทธ์ A-D พร้อมคลิปที่แนะนำจากข้อมูล
+  const pick = (f, n = 6) => clips.filter(f).sort((a, b) => b.spend - a.spend).slice(0, n).map(c => c.name);
+  const openerOk = c => c.tags.includes('ดู') || (c.costPerMsg !== null && c.costPerMsg <= R.chatCost);
+  const strategy = STRATEGY.map(S => ({ ...S,
+    clips: S.key === 'A' ? pick(c => openerOk(c) && ['TOFU', 'อินฟู', 'MOFU', 'ไม่ระบุ', 'ภาพนิ่ง'].includes(c.stage) && c.layers.includes(1))
+      : S.key === 'B' ? pick(c => c.stage === 'MOFU' || /เทียบ|คืนเงิน|ของแท้|ปลอม|หลอก|รุ่นไหน|ต่างกัน/.test(c.name))
+      : S.key === 'C' ? pick(c => c.layers.includes(3) || /ไม่มีอะไรให้รอ|เฉพาะคนทัก|คำถาม/.test(c.name), 4)
+      : pick(c => c.layers.includes(4) && c.roas !== null && c.roas >= R.buyRoas),
+    audiencesNow: audiences.filter(a => (S.key === 'A' && a.layer === 1) || (S.key === 'B' && a.layer === 2) || (S.key === 'C' && a.layer === 3) || (S.key === 'D' && a.layer === 4)).map(a => a.name).slice(0, 5),
+  }));
+  return { hasVideoStats, hasMsgStats, clips, audiences, strategy, rules: R };
+}
+
 /** รวมแผน auto ของวันนี้กับรายการที่ทีมพิมพ์เอง (source 'team') และสถานะที่ทีมติ๊กไว้ */
+// ---------- สรุปวันนี้ (ภาษาง่าย: คน 1,000 คน หยุดดู → ถาม → ซื้อ) ----------
+export const BRIEF_RULES = { watchGood: 60, watchBad: 35, askGood: 8, askRateBad: 2, roasGood: 4, minSpend: 150, cpmHighNew: 120, cpmHighRe: 220, target: 30 };
+function briefName(camp) {
+  let c = String(camp || '').replace(/\s*-\s*\d{3,4}.*$/, '').replace(/\{O\}/g, '');
+  const parts = c.split('/').map(x => x.trim()).filter(Boolean); if (!parts.length) return camp;
+  const prod = parts[0]; let last = parts[parts.length - 1].replace(/^(VDO|VDo|รูป)\s*/, '');
+  if (last.startsWith(prod)) last = last.slice(prod.length).trim();
+  const mid = parts.slice(1, -1).find(x => ['หาคนใหม่', 'เพิ่มมูลค่า', 'ขาย', 'ABO'].includes(x));
+  return (prod + ' · ' + last + (mid ? ` (${mid})` : '')).slice(0, 52);
+}
+/** ตัดสิน 1 แคมเปญ ตามลำดับ 3 คำถาม: หยุดดูไหม → ถามไหม → ซื้อไหม (ลูกค้าเก่าข้ามข้อ 1) */
+export function briefJudge(r, R = BRIEF_RULES) {
+  const { watch, ask, askRate, cpm, layer: L, roas, spend, purch, isStatic, isNew } = r;
+  if (isNew && purch === 0 && ask < R.askGood && (L === 4 || !(watch >= R.watchGood && askRate < 1))) return { tag: 'เพิ่งเริ่มวันนี้', cls: 'wait', say: 'ยังตัดสินไม่ได้ ดูอีก 2 วัน', who: '' };
+  if (L === 4) {
+    if (roas !== null && roas >= R.roasGood) return { tag: 'ลูกค้าเก่า ขายได้', cls: 'good', say: 'ทำเงินอยู่ คุมไม่ให้คนเดิมเห็นเกิน 3 ครั้ง/วัน', who: 'แอด' };
+    if (spend >= R.minSpend && purch === 0) return { tag: 'ลูกค้าเก่า ไม่ซื้อ', cls: 'bad', say: 'ยิงรายชื่อเดิมซ้ำกับตัวที่ขายได้ ปิดตัวนี้', who: 'แอด' };
+    return { tag: 'ลูกค้าเก่า พอใช้', cls: 'ok', say: 'ดูแค่ยอด ไม่ต้องดูว่าคนดูคลิปไหม', who: 'แอด' };
+  }
+  if (ask >= R.askGood || (roas !== null && roas >= R.roasGood)) {
+    if (L === 1 && purch === 0) return { tag: 'ดีมาก ห้ามแตะ', cls: 'good', say: 'คนถามเยอะแต่ยังไม่ซื้อ ปัญหาอยู่หลังแชท ต้องมีแอดตามคนที่ถามแล้วเงียบ', who: 'แอด' };
+    return { tag: 'ดีมาก ห้ามแตะ', cls: 'good', say: 'ทำงานครบทุกข้อ เพิ่มงบได้', who: 'แอด' };
+  }
+  if (isStatic) {
+    if (ask >= 4) return { tag: 'รูปนิ่ง ทำงานได้', cls: 'ok', say: 'คนถามพอใช้ คงงบเดิม', who: '' };
+    return { tag: 'รูปนิ่ง ถามน้อย', cls: 'fix', say: 'ขอรูปใหม่ที่เห็นราคาและสินค้าชัดใน 1 วิ', who: 'คอนเทนต์' };
+  }
+  if (watch >= R.watchGood && askRate < R.askRateBad) return { tag: 'แก้ท้ายคลิป', cls: 'fix', say: 'คนดูนานแต่ไม่ถาม ขอเพิ่มท้ายคลิป 3 วิ: ราคา + ทักมาได้เลย', who: 'คอนเทนต์' };
+  if (cpm > (L === 1 ? R.cpmHighNew : R.cpmHighRe) && watch >= R.watchGood) return { tag: 'คลิปดี แต่กลุ่มแพง', cls: 'ok', say: 'เรื่องของทีมแอด ขยายกลุ่มให้กว้างขึ้น คลิปไม่ต้องแก้', who: 'แอด' };
+  if (watch < R.watchBad && spend >= R.minSpend) return { tag: 'ปิดได้', cls: 'bad', say: 'คนไม่หยุดดูและไม่ถาม ทำใหม่ถูกกว่าแก้', who: 'แอด' };
+  if (watch < R.watchGood && askRate < R.askRateBad && spend >= R.minSpend) return { tag: 'ปิดได้', cls: 'bad', say: 'หยุดดูน้อย ถามน้อย ปิดแล้วเอางบไปให้ตัวที่ดี', who: 'แอด' };
+  if (watch < R.watchBad) return { tag: 'แก้ 3 วิแรก', cls: 'fix', say: 'คนเลื่อนผ่าน ขอเปลี่ยนภาพเปิดและประโยคแรกอย่างเดียว', who: 'คอนเทนต์' };
+  return { tag: 'พอใช้', cls: 'ok', say: 'ทำงานได้แต่ไม่เด่น คงงบเดิม', who: '' };
+}
+export function buildBrief(campaigns, totals, layers, date, R = BRIEF_RULES) {
+  const dm = date ? `${date.slice(8, 10)}-${date.slice(5, 7)}` : '';
+  const rows = campaigns.map(c => {
+    const imp = c.imp || 0, thru = c.thru || 0, msgs = c.msgs || 0, purch = c.purch || 0;
+    const r = {
+      name: briefName(c.name), camp: c.name, layer: c.layer, product: c.product, spend: c.spend, rev: c.rev, purch, msgs, imp, roas: c.roas,
+      isStatic: (c.vplay || 0) < 100 && imp > 500, isNew: !!dm && c.name.includes(dm),
+      watch: imp ? thru / imp * 1000 : 0, ask: imp ? msgs / imp * 1000 : 0, buy: imp ? purch / imp * 1000 : 0,
+      askRate: thru ? msgs / thru * 100 : 0, buyRate: msgs ? purch / msgs * 100 : 0, cpm: imp ? c.spend / imp * 1000 : 0,
+    };
+    return { ...r, ...briefJudge(r, R) };
+  }).sort((a, b) => b.spend - a.spend);
+  const spend = totals.spend || 0, rev = totals.rev || 0, purch = totals.purch || 0;
+  const msgs = rows.reduce((t, r) => t + r.msgs, 0);
+  const adpct = rev > 0 ? spend / rev * 100 : null;
+  const L = {}; for (const l of layers || []) L[l.layer] = l.spend || 0;
+  const keep = rows.filter(r => r.cls === 'good'), close = rows.filter(r => r.cls === 'bad'), fix = rows.filter(r => r.cls === 'fix');
+  const openers = keep.filter(r => r.layer === 1 && r.ask >= R.askGood);
+  const fm = v => Math.round(v).toLocaleString('en-US');
+  let top;
+  if (!(L[3] > 0) && msgs >= 100) top = { key: 'no-layer3', title: 'ไม่มีแอดตามคนที่ถามแล้วเงียบ', detail: `วันนี้มีคนถาม ${fm(msgs)} คน แต่ไม่มีแอดตัวไหนยิงตามคนที่ถามแล้วยังไม่ซื้อเลย เงินที่ใช้ซื้อคนถาม ${fm(L[1] || 0)} บาท จึงไม่กลายเป็นยอด`, action: 'ทีมแอด: สร้างชุด "คนทักแชท 7 วัน ยกเว้นคนซื้อ" แยกสินค้า ใช้คลิปราคาพิเศษที่มีอยู่ วันนี้เลย' };
+  else if (adpct !== null && adpct > R.target) top = { key: 'adpct', title: 'ค่าแอดเกินเป้า', detail: `ค่าแอด ${adpct.toFixed(0)}% เป้าไม่เกิน ${R.target}%`, action: close.length ? `ปิด ${close.length} ตัวที่ขึ้น "ปิดได้" แล้วเอางบไปให้ตัวที่ "ห้ามแตะ"` : 'ลดงบตัวที่ "พอใช้" แล้วเพิ่มให้ตัวที่ "ห้ามแตะ"' };
+  else if (fix.length) top = { key: 'fix', title: 'คลิปที่คนดูแต่ไม่ถาม', detail: `${fix.length} คลิปคนหยุดดูเยอะแต่ไม่ทัก`, action: 'บอกทีมคอนเทนต์เพิ่มราคาและคำชวนท้ายคลิป' };
+  else top = { key: 'ok', title: 'วันนี้ผ่านเป้า', detail: adpct === null ? 'ยังไม่มียอด' : `ค่าแอด ${adpct.toFixed(0)}%`, action: 'ทำต่อแบบเดิม เพิ่มงบตัวที่ "ห้ามแตะ" ทีละ 20%' };
+  const adTasks = [];
+  if (top.key === 'no-layer3') adTasks.push({ t: 'สร้างแอดตามคนทัก', d: '"คนทักแชท 7 วัน ยกเว้นคนซื้อ" แยกสินค้า ชุดละ 400 บาท งบมาจากตัวที่ปิด' });
+  if (close.length) adTasks.push({ t: `ปิด ${close.length} ตัว`, d: `ที่ขึ้นป้าย "ปิดได้" (รวม ${fm(close.reduce((t, r) => t + r.spend, 0))} บาท/วัน ได้ ${close.reduce((t, r) => t + r.purch, 0)} ออเดอร์)` });
+  const expensive = rows.filter(r => r.tag === 'คลิปดี แต่กลุ่มแพง');
+  if (expensive.length) adTasks.push({ t: 'ขยายกลุ่ม', d: expensive.map(r => r.name).join(' · ') + ' คลิปดีแต่ค่าแสดงแพง' });
+  if (keep.length) adTasks.push({ t: 'เพิ่มงบตัวที่ "ห้ามแตะ"', d: keep.slice(0, 5).map(r => r.name).join(' · ') });
+  const content = fix.slice(0, 5).map(r => ({ name: r.name, watch: r.watch, ask: r.ask, say: r.say }));
+  return { date, target: R.target, kpis: { spend, rev, purch, adpct, msgs, costPerMsg: msgs ? spend / msgs : null }, top, adTasks, content, openers: openers.map(r => r.name), keep: keep.slice(0, 6), close, rows, rules: R };
+}
+
 export function mergePlan(autoPlan, savedPlan) {
   if (!savedPlan || !savedPlan.layers) return { layers: autoPlan, updatedAt: null };
   const layers = autoPlan.map(al => {
