@@ -1,11 +1,11 @@
 // app.js — หน้าจอกระดานแอด BLISSTECH (สถานะ, localStorage, เรนเดอร์ทุกหน้า)
-import { analyze, cloneDefaults, mergePlan, diffTotals, campaignsToCsv, MULTI_PRODUCT, LAYER_NAMES, shortCamp, actualMetrics, buildJourney, buildBehaviour, buildBrief } from './engine.js?v=20260916084633';
-import { mainFunnelSvg, productFunnelSvg } from './funnel.js?v=20260916084633';
-import { createApi, loadPlugins } from './plugins.js?v=20260916084633';
-import * as ENGINE from './engine.js?v=20260916084633';
+import { analyze, cloneDefaults, mergePlan, diffTotals, campaignsToCsv, MULTI_PRODUCT, LAYER_NAMES, shortCamp, actualMetrics, buildJourney, buildBehaviour, buildBrief, buildDaily, buildBoss, buildWeekly, rangeDays } from './engine.js?v=20260921222650';
+import { mainFunnelSvg, productFunnelSvg } from './funnel.js?v=20260921222650';
+import { createApi, loadPlugins } from './plugins.js?v=20260921222650';
+import * as ENGINE from './engine.js?v=20260921222650';
 
 // ---------- เก็บข้อมูล ----------
-const KEYS = { settings: 'kad:settings', days: 'kad:days', plan: 'kad:plan', clips: 'kad:clips', manual: 'kad:manual' };
+const KEYS = { settings: 'kad:settings', days: 'kad:days', plan: 'kad:plan', clips: 'kad:clips', manual: 'kad:manual', weeks: 'kad:weeks' };
 function load(key, fallback) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; } }
 function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch (e) { toast('บันทึกไม่ได้: พื้นที่เก็บข้อมูลของเบราว์เซอร์เต็ม ลบวันเก่าในหน้าโหลดไฟล์'); return false; } }
 
@@ -15,6 +15,7 @@ const state = {
   plan: load(KEYS.plan, null),
   clips: load(KEYS.clips, []),
   manual: load(KEYS.manual, { products: {}, layers: {} }),
+  weeks: load(KEYS.weeks, {}), week: null,
   date: null, pending: null, advice: null,
 };
 // รวม rules ที่อาจเพิ่มใหม่ในเวอร์ชันหลัง
@@ -35,7 +36,7 @@ const AB = createApi({
   setOverride: (date, name, patch) => { const D = state.days[date]; if (!D || !D.campaigns.some(c => c.name === name)) return false; D.overrides[name] = { ...(D.overrides[name] || {}), ...patch }; save(KEYS.days, state.days); renderDecisions(); return true; },
   setActual: (date, actual) => { const D = state.days[date]; if (!D) return false; D.actual = actual && actual.rev > 0 ? { ...actual, updatedAt: new Date().toISOString() } : null; save(KEYS.days, state.days); renderOverview(); return true; },
   addPlanItem: (layer, key, item) => { const layers = currentPlan(), p = layers.find(x => x.layer === layer); if (!p || !p[key]) return false; p[key].push({ ...item, source: 'team' }); savePlanFrom(layers); renderPlan(); renderFunnel(); return true; },
-  renderPngBlob: async (date) => { const D = (date ? state.days[date] : day()); if (!D) throw new Error('ยังไม่ได้โหลดไฟล์'); const m = await import('./sheet.js?v=20260916084633'); return (await m.renderPngBlob(D, currentPlan(), $('#sheetHost'))).blob; },
+  renderPngBlob: async (date) => { const D = (date ? state.days[date] : day()); if (!D) throw new Error('ยังไม่ได้โหลดไฟล์'); const m = await import('./sheet.js?v=20260921222650'); return (await m.renderPngBlob(D, currentPlan(), $('#sheetHost'))).blob; },
   onRegistryChange: () => { if (typeof renderPluginUi === 'function') renderPluginUi(); },
 });
 window.AdBoard = AB;
@@ -111,6 +112,7 @@ async function runAnalysis(buf, fileName) {
   const sheetName = wb.SheetNames.find(n => /creative/i.test(n)) || wb.SheetNames[0];
   const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: null });
   const A = analyze(rows, state.settings, state.clips, state.manual);
+  if (rangeDays(A.date, A.dateEnd) > 1) { $('#dropMsg').textContent = ''; $('#loadInfo').innerHTML = `<div class="warnbox">ไฟล์นี้เป็นช่วง ${thDate(A.date)} ถึง ${thDate(A.dateEnd)} (${rangeDays(A.date, A.dateEnd)} วัน) จึงเก็บไว้ที่หน้า <b>สรุปรายสัปดาห์</b> ไม่ปนกับรายวัน</div>`; commitWeek(A, fileName); return; }
   state.pending = { rows, fileName, A };
   $('#dropMsg').textContent = '';
   renderLoadInfo();
@@ -151,7 +153,7 @@ function commitPending() {
   const prev = state.days[A.date] || {};
   const rec = {
     fileName, uploadedAt: new Date().toISOString(), date: A.date, dateEnd: A.dateEnd, totals: A.totals, campaigns: A.campaigns, adsets: A.adsets, ads: A.ads, places: A.places,
-    layers: A.layers, products: A.products, productFunnels: A.productFunnels, dupClips: A.dupClips, dupAdsets: A.dupAdsets, unresolved: A.unresolved, planAuto: A.plan, journey: A.journey, behaviour: A.behaviour, brief: A.brief, rowCount: A.rowCount,
+    layers: A.layers, products: A.products, productFunnels: A.productFunnels, dupClips: A.dupClips, dupAdsets: A.dupAdsets, unresolved: A.unresolved, planAuto: A.plan, journey: A.journey, behaviour: A.behaviour, brief: A.brief, daily: A.daily, rowCount: A.rowCount,
     overrides: prev.overrides || {}, advice: prev.advice || null,
   };
   state.days[A.date] = rec;
@@ -162,12 +164,15 @@ function commitPending() {
   state.date = A.date; state.pending = null;
   const q = new URLSearchParams(location.search); // โหมดพัฒนา
   if (q.get('sample')) adviceModule().then(m => { if (m) { rec.advice = m.sampleAdvice(rec, currentPlan()); save(KEYS.days, state.days); renderAdvice(); renderOverview(); } });
-  if (q.get('sheet')) import('./sheet.js?v=20260916084633').then(m => { $('#sheetHost').innerHTML = m.sheetHtml(rec, currentPlan()); }).catch(e => { $('#exportMsg').textContent = e.message; });
+  if (q.get('sheet')) import('./sheet.js?v=20260921222650').then(m => { $('#sheetHost').innerHTML = m.sheetHtml(rec, currentPlan()); }).catch(e => { $('#exportMsg').textContent = e.message; });
+  if (q.get('actual') && (!q.get('actualfor') || q.get('actualfor') === A.date)) { const [r, o] = q.get('actual').split(',').map(Number); const bpd = {}; for (const kv of (q.get('actualp') || '').split(',').filter(Boolean)) { const [n, v] = kv.split(':'); bpd[n] = { rev: Number(v) }; } rec.actual = { rev: r, orders: o || null, note: 'dev', byProduct: bpd, updatedAt: new Date().toISOString() }; save(KEYS.days, state.days); }   // โหมดพัฒนา: ใส่ยอดจริงให้วันล่าสุด
+  for (const kv of (q.get('actuals') || '').split(',').filter(Boolean)) { const [d, v] = kv.split(':'); if (d === A.date) { rec.actual = { rev: Number(v), orders: null, note: 'dev', byProduct: {}, updatedAt: new Date().toISOString() }; save(KEYS.days, state.days); } }
+  if (q.get('vpng')) viewPngBlob('#' + q.get('vpng'), q.get('vpng'), 'test').then(r => { $('#' + q.get('vpng') + 'Msg').textContent = 'vpng ok ' + Math.round(r.blob.size / 1024) + 'KB'; }).catch(e => { $('#' + q.get('vpng') + 'Msg').textContent = 'vpng fail ' + e.message; });
   if (q.get('bpng')) briefPngBlob().then(r => { $('#briefMsg').textContent = 'bpng ok ' + Math.round(r.blob.size / 1024) + 'KB'; }).catch(e => { $('#briefMsg').textContent = 'bpng fail ' + e.message; });
   if (q.get('jpng')) journeyPngBlob('').then(r => { $('#journeyMsg').textContent = 'jpng ok ' + Math.round(r.blob.size / 1024) + 'KB'; }).catch(e => { $('#journeyMsg').textContent = 'jpng fail ' + e.message; });
-  if (q.get('png')) import('./sheet.js?v=20260916084633').then(m => m.exportPng(rec, currentPlan(), $('#sheetHost'), true)).then(r => { $('#exportMsg').textContent = 'png ok ' + r; }).catch(e => { $('#exportMsg').textContent = 'png fail ' + e.message; });
+  if (q.get('png')) import('./sheet.js?v=20260921222650').then(m => m.exportPng(rec, currentPlan(), $('#sheetHost'), true)).then(r => { $('#exportMsg').textContent = 'png ok ' + r; }).catch(e => { $('#exportMsg').textContent = 'png fail ' + e.message; });
   toast(`วิเคราะห์ ${thDate(A.date)} เสร็จ`);
-  renderAll(); showView(autoView || 'overview'); autoView = null;
+  renderAll(); showView(autoView || 'daily');
   AB.emit('day:loaded', { date: A.date, fileName });
   if (state.settings.tgAuto && tgReady()) { $('#tgHint').textContent = 'กำลังส่งอัตโนมัติ...'; sendToTelegram(rec, $('#exportMsg')).then(ok => { $('#tgHint').textContent = ok ? `ส่งอัตโนมัติแล้ว ${new Date().toLocaleTimeString('th-TH')}` : 'ส่งอัตโนมัติไม่สำเร็จ ดูข้อความในหน้าส่งออก'; }); }
 }
@@ -181,14 +186,14 @@ function renderAll() {
   const D = day();
   const rangeTxt = d => d.dateEnd && d.dateEnd !== d.date ? `${thDate(d.date)} ถึง ${thDate(d.dateEnd)}` : thDate(d.date);
   $('#chipDate').textContent = D ? `ข้อมูล ${rangeTxt(D)}` : 'ยังไม่ได้โหลดไฟล์';
-  renderBrief(); renderOverview(); renderFunnel(); renderJourney(); renderBehaviour(); renderDecisions(); renderPlan(); renderAdvice(); renderSettings();
+  renderDaily(); renderBoss(); renderWeekly(); renderBrief(); renderOverview(); renderFunnel(); renderJourney(); renderBehaviour(); renderDecisions(); renderPlan(); renderAdvice(); renderSettings();
   for (const id of ['ovProducts', 'ovPlaces', 'funnelMain', 'dupClips', 'dupAdsets', 'decisions', 'plan', 'journey', 'behaviour']) $('#' + id).classList.toggle('empty', !D);
   $('#advice').classList.toggle('empty', !(D && D.advice));
   $('#daysList').classList.toggle('empty', !dates.length);
 }
 $('#daysList').addEventListener('click', e => {
   const o = e.target.closest('[data-open]'), x = e.target.closest('[data-del]');
-  if (o) { state.date = o.dataset.open; renderAll(); showView('overview'); }
+  if (o) { state.date = o.dataset.open; renderAll(); showView('daily'); }
   if (x) { if (confirm(`ลบข้อมูลวันที่ ${thDate(x.dataset.del)}?`)) { delete state.days[x.dataset.del]; save(KEYS.days, state.days); if (state.date === x.dataset.del) state.date = Object.keys(state.days).sort().pop() || null; renderAll(); } }
 });
 
@@ -261,7 +266,7 @@ $('#ovActual').addEventListener('click', e => {
   const sumBP = Object.values(act.byProduct).reduce((s, x) => s + (x.rev || 0), 0);
   if (act.rev === null && sumBP > 0) act.rev = sumBP;
   if (act.rev !== null && sumBP > act.rev * 1.02) { toast(`ยอดแยกสินค้ารวม ${n0(sumBP)} มากกว่ายอดรวม ${n0(act.rev)} ตรวจตัวเลขก่อน`); return; }
-  D.actual = act.rev === null ? null : act; save(KEYS.days, state.days); renderOverview(); toast(act.rev === null ? 'ล้างยอดจริงแล้ว' : 'บันทึกยอดจริงแล้ว'); AB.emit('actual:saved', { date: state.date, actual: D.actual });
+  D.actual = act.rev === null ? null : act; save(KEYS.days, state.days); renderOverview(); renderDaily(); renderBoss(); renderWeekly(); toast(act.rev === null ? 'ล้างยอดจริงแล้ว' : 'บันทึกยอดจริงแล้ว'); AB.emit('actual:saved', { date: state.date, actual: D.actual });
 });
 
 // ---------- กรวย ----------
@@ -325,6 +330,241 @@ function renderBehaviour() {
     <p class="note">วิธีตั้งกลุ่มเป้าหมายและแคมเปญตามตารางนี้ทีละขั้น อยู่ในไฟล์ คู่มือตั้งกรวย-4-กลุ่ม.md ในโฟลเดอร์งาน</p>`;
 }
 
+// ---------- รายงานรายวัน + สรุปเจ้านาย ----------
+function ensureDaily(D) { if (!D.daily && D.campaigns) { D.daily = buildDaily(D.campaigns, [], D.totals, D.date); save(KEYS.days, state.days); } return D.daily; }
+function actualBoxHtml(D, where) {
+  const act = D.actual || {}, bp = act.byProduct || {}, names = (D.products || []).filter(p => p.spend > 0 && p.name !== 'ไม่ระบุ').map(p => p.name);
+  return `<div class="actbox" data-where="${where}"><div class="actbox-h"><b>ยอดขายจริงจากออเดอร์ของวันนี้</b><span class="small muted">${act.rev > 0 ? 'กรอกแล้ว รายงานใช้ยอดจริง · แก้ได้' : 'ยังไม่ได้กรอก รายงานใช้ยอดจาก Meta ไปก่อน'}</span></div>
+    <div class="actbox-g"><label>ยอดขายจริงรวม (บาท)<input type="number" min="0" data-ab="rev" value="${act.rev ?? ''}" placeholder="เช่น 45000"></label><label>จำนวนออเดอร์จริง<input type="number" min="0" data-ab="orders" value="${act.orders ?? ''}" placeholder="เช่น 60"></label>
+    ${names.map(n => `<label>${esc(n)} (บาท)<input type="number" min="0" data-ab-prod="${esc(n)}" value="${(bp[n] || {}).rev ?? ''}" placeholder="ไม่กรอกก็ได้"></label>`).join('')}
+    <button class="btn" data-ab-save>บันทึกยอดจริง</button></div></div>`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-ab-save]'); if (!b) return; const D = day(); if (!D) return;
+  const box = b.closest('.actbox'), num = v => { const n = parseFloat(v); return isNaN(n) || n < 0 ? null : n; };
+  const old = D.actual || {}, act = { rev: num(box.querySelector('[data-ab="rev"]').value), orders: num(box.querySelector('[data-ab="orders"]').value), note: old.note || '', byProduct: { ...(old.byProduct || {}) }, updatedAt: new Date().toISOString() };
+  box.querySelectorAll('[data-ab-prod]').forEach(i => { const n = i.dataset.abProd; act.byProduct[n] = { ...(act.byProduct[n] || {}), rev: num(i.value) }; });
+  const sumProd = Object.values(act.byProduct).reduce((t, x) => t + (x.rev || 0), 0);
+  if (act.rev === null && sumProd > 0) act.rev = sumProd;                       // กรอกแยกสินค้าอย่างเดียว → รวมให้
+  if (act.rev !== null && sumProd > act.rev * 1.01) { toast('ยอดแยกสินค้ารวมกันเกินยอดรวม ตรวจอีกครั้ง'); return; }
+  D.actual = act.rev === null ? null : act; save(KEYS.days, state.days); renderOverview(); renderDaily(); renderBoss(); renderWeekly();
+  toast(D.actual ? 'บันทึกยอดจริงแล้ว รายงานใช้ยอดจริง' : 'ล้างยอดจริงแล้ว'); AB.emit('actual:saved', { date: state.date, actual: D.actual });
+});
+function deltaHtml(v, base, lowerBetter, label, fmt = n0) {
+  if (v === null || v === undefined || !base) return ''; const d = (v - base) / base * 100, good = (d < 0) === lowerBetter;
+  return `<div class="d ${good ? 'up' : 'down'}">${d > 0 ? '▲' : '▼'} ${Math.abs(d).toFixed(0)}% จาก ${label} (${fmt(base)})</div>`;
+}
+function renderDaily() {
+  const D = day(); if (!D) { $('#daily').textContent = 'ยังไม่ได้โหลดไฟล์'; return; }
+  const Y = ensureDaily(D); if (!Y) { $('#daily').textContent = 'ไม่มีข้อมูล'; return; }
+  const P = prevDay(), PK = P && ensureDaily(P) ? P.daily.kpis : null, pl = P ? thDate(P.date) : '';
+  const K = Y.kpis, R = Y.rules, AM = actualMetrics(D.totals, D.products, D.actual), over = (AM ? AM.adpct : K.adpct) > R.target, hasBud = Y.budget.has, sx = { male: 'ชาย', female: 'หญิง' };
+  const rowsHtml = (rs, old) => rs.map(r => `<tr><td class="name">${esc(r.name)}${r.isNew ? ' <span class="newtag">ใหม่</span>' : ''}</td><td class="r num">${n0(r.spend)}</td>${hasBud ? `<td class="r num ${r.use >= R.fullUse ? 'fulluse' : ''}">${r.use === null ? '-' : Math.round(r.use) + '%'}</td>` : ''}<td class="r num">${n0(r.msgs)}</td><td class="r num b">${r.cp === null ? '-' : Math.round(r.cp)}</td><td class="r num">${n0(r.purch)}${r.noval ? ` <span class="muted small">(${n0(r.noval)} ไม่มียอด)</span>` : ''}</td><td class="r num">${n0(r.rev)}</td>${old ? `<td class="r num b">${n1(r.roas)}</td>` : ''}</tr>`).join('');
+  const block = (k, title, rule, old) => { const g = Y.groups[k]; const sum = f => g.reduce((t, r) => t + r[f], 0);
+    return `<div class="dl-grp ${k}"><h4><i class="dot ${k}"></i>${title} <em>${g.length} ตัว · ใช้ ${n0(sum('spend'))} · ทัก ${n0(sum('msgs'))} · ยอด ${n0(sum('rev'))}</em></h4><p class="note">${rule}</p><div class="tbl-wrap"><table class="tbl"><thead><tr><th>แคมเปญ</th><th class="r">ใช้</th>${hasBud ? '<th class="r">ใช้งบ</th>' : ''}<th class="r">ทัก</th><th class="r">บาท/ทัก</th><th class="r">ออเดอร์</th><th class="r">ยอด</th>${old ? '<th class="r">ROAS</th>' : ''}</tr></thead><tbody>${rowsHtml(g, old) || `<tr><td colspan="8" class="muted">ไม่มี</td></tr>`}</tbody></table></div></div>`; };
+  const ag = Y.ageGender, best = ag.length ? [...ag].sort((a, b) => (b.roas ?? 0) - (a.roas ?? 0))[0] : null, cheap = ag.length ? [...ag].filter(a => a.cp).sort((a, b) => a.cp - b.cp)[0] : null;
+  const PAM = P ? actualMetrics(P.totals, P.products, P.actual) : null, bpA = AM ? Object.entries(AM.byProduct) : [];
+  const realStrip = AM ? `<div class="realbar ${AM.adpct > R.target ? 'over' : 'pass'}"><div class="rb-main"><span>ค่าแอดจากยอดขายจริง</span><b>${n1(AM.adpct)}%</b><em>${AM.adpct > R.target ? `เกินเป้า ${R.target}% อยู่ ${n1(AM.adpct - R.target)} จุด` : `ผ่านเป้า ${R.target}% เหลืออีก ${n1(R.target - AM.adpct)} จุด`}</em></div>
+      <div class="rb-calc"><div>ใช้เงิน <b>${n0(K.spend)}</b> ÷ ยอดขายจริง <b>${n0(AM.rev)}</b>${AM.orders ? ` (${n0(AM.orders)} ออเดอร์ · ออเดอร์ละ ${n0(AM.aov)} บาท · ค่าแอดต่อออเดอร์ ${n0(AM.cpp)} บาท)` : ''}</div>
+        <div>ตาม Meta ค่าแอด ${n0(K.adpct)}% เพราะ Meta เห็นยอดแค่ ${n0(K.rev)} บาท (${n0(AM.metaCoverage)}% ของยอดจริง)${PAM ? ` · ${thDate(P.date)} ค่าแอดจริง ${n1(PAM.adpct)}% ${AM.adpct < PAM.adpct ? '▼ ดีขึ้น' : '▲ แย่ลง'}` : ''}</div>
+        ${bpA.length ? `<div class="rb-prod">${bpA.map(([n, x]) => `<span class="${x.adpct > R.target ? 'over' : 'pass'}"><b>${esc(n)}</b> ${n0(x.adpct)}%<small>ยอดจริง ${n0(x.rev)}</small></span>`).join('')}</div>` : '<div class="muted small">กรอกยอดจริงแยกสินค้าด้านบน จะเห็นค่าแอดจริงของแต่ละสินค้า</div>'}</div></div>`
+    : `<div class="realbar none"><div class="rb-main"><span>ค่าแอดจากยอดขายจริง</span><b>?</b><em>ยังไม่ได้กรอก</em></div><div class="rb-calc"><div>กรอก <b>ยอดขายจริงจากออเดอร์</b> ในกล่องด้านบน แล้วกดบันทึก ตัวเลขนี้จะขึ้นทันที</div><div>ตอนนี้รู้แค่ค่าแอดตาม Meta ${n0(K.adpct)}% ซึ่ง Meta มักเห็นยอดไม่ครบ${K.noval ? ` และวันนี้มี ${n0(K.noval)} ออเดอร์ที่ Meta นับแต่ไม่มียอดเงิน` : ''}</div></div></div>`;
+  $('#daily').classList.remove('empty');
+  $('#daily').innerHTML = `
+    ${actualBoxHtml(D, 'daily')}
+    <div class="brief-head"><span class="small muted">วันที่ ${thDate(Y.date)}</span><h3>${esc(AM ? `ค่าแอดจริง ${n0(AM.adpct)}% ${AM.adpct > R.target ? 'เกินเป้า' : 'ผ่านเป้า'} (Meta ${n0(K.adpct)}%) · ` + Y.headline.split(' · ').slice(1).join(' · ') : Y.headline)}</h3></div>
+    ${realStrip}
+    <div class="cards">
+      <div class="stat"><div class="t">ใช้เงินไป</div><div class="v num">${n0(K.spend)}</div>${deltaHtml(K.spend, PK && PK.spend, true, pl)}</div>
+      <div class="stat ${AM ? 'actual' : ''}"><div class="t">${AM ? 'ยอดขายจริง' : 'ได้ยอด (Meta)'} · ออเดอร์${AM ? (AM.orders ? 'จริง ' + n0(AM.orders) : '') : 'มีมูลค่า ' + n0(K.valued)}</div><div class="v num">${n0(AM ? AM.rev : K.rev)}</div>${AM ? `<div class="sub">Meta เห็น ${n0(K.rev)} (${n0(AM.metaCoverage)}% ของจริง)</div>` : (K.noval ? `<div class="sub">อีก ${n0(K.noval)} ออเดอร์ Meta นับแต่ไม่มีมูลค่า อย่าเชื่อ</div>` : '')}</div>
+      <div class="stat ${over ? 'br-over' : 'br-pass'}"><div class="t">ค่าแอด${AM ? 'จริง' : ''} · เป้าไม่เกิน ${R.target}%</div><div class="v num">${n0(AM ? AM.adpct : K.adpct)}%</div>${AM ? `<div class="sub">ตาม Meta ${n0(K.adpct)}%</div>` : deltaHtml(K.adpct, PK && PK.adpct, true, pl, v => n0(v) + '%')}</div>
+      <div class="stat"><div class="t">คนทัก · คนละ ${n0(K.cp)} บาท</div><div class="v num">${n0(K.msgs)}</div>${deltaHtml(K.cp, PK && PK.cp, true, pl, v => n0(v) + ' บาท/ทัก')}</div>
+    </div>
+    <h3 class="sec-h">1. ช่วงเวลาและงบ</h3>
+    <div class="dl-two"><div>
+      <div class="dl-nohour"><b>ยังดูช่วงเวลาไม่ได้</b> ไฟล์ Meta ปกติไม่แยกชั่วโมง วิธีดึง: Ads Manager → รายงาน → Breakdown → ตามเวลา → <b>ช่วงเวลาของวัน (เขตเวลาของบัญชีโฆษณา)</b> ระดับแคมเปญ หรือดูเวลาคนกดโฆษณาจากไฟล์แชท Pancake ของวันเดียวกัน<br>ข้อมูลที่มี (15 ก.ย.): คนกดโฆษณา 78% เข้ามาก่อนเที่ยง หลัง 17:00 เหลือ 6% แต่ตอบต่อ 65% เทียบกลางวัน 27%</div>
+      ${hasBud ? `<div class="brief-top blue"><b>งบหมด ${Y.budget.full} จาก ${Y.budget.count} แคมเปญ (ใช้งบ ${R.fullUse}% ขึ้นไป)</b><p>ใช้จริง ${n0(Y.budget.used)} จากงบที่ตั้ง ${n0(Y.budget.set)} บาท (${n0(Y.budget.used / Y.budget.set * 100)}%) ตัวที่งบหมดจะหยุดวิ่งเอง ถ้าหมดก่อนเย็นจะพลาดช่วง 17:00-22:00</p></div>` : '<p class="note">ไฟล์นี้ไม่มีคอลัมน์ "งบประมาณของแคมเปญ" เพิ่มคอลัมน์นี้ตอน export จะเห็นว่าตัวไหนงบหมด</p>'}
+    </div><div>${ag.length ? `<p class="dl-cap">ใครทัก ใครซื้อ (อายุ × เพศ ที่ใช้เงินเกิน ${R.ageMinSpend} บาท)</p><div class="tbl-wrap"><table class="tbl"><thead><tr><th>กลุ่ม</th><th class="r">ใช้</th><th class="r">ทัก</th><th class="r">บาท/ทัก</th><th class="r">ยอด</th><th class="r">ROAS</th></tr></thead><tbody>${ag.map(a => `<tr><td><b>${sx[a.gender] || esc(a.gender)} ${esc(a.age)}</b></td><td class="r num">${n0(a.spend)}</td><td class="r num">${n0(a.msgs)}</td><td class="r num b">${n0(a.cp)}</td><td class="r num">${n0(a.rev)}</td><td class="r num b">${n1(a.roas)}</td></tr>`).join('')}</tbody></table></div><p class="note">ซื้อดีสุด: ${sx[best.gender]} ${esc(best.age)} (ROAS ${n1(best.roas)})${cheap ? ` · ทักถูกสุด: ${sx[cheap.gender]} ${esc(cheap.age)} (${n0(cheap.cp)} บาท)` : ''} กลุ่มที่ทักถูกอาจไม่ใช่กลุ่มที่ซื้อ</p>` : '<p class="note">ไฟล์นี้ไม่ได้แยกอายุและเพศ</p>'}</div></div>
+    <h3 class="sec-h">2. กติกาคุมแอดด้วย "บาทต่อคนทัก" <span class="small muted">ดู 2 รอบต่อวัน 13:00 และ 21:30 · ห้ามปิดแอดช่วง 17:00-22:00</span></h3>
+    <div class="dl-rules">
+      <div class="dl-rl green"><b><i class="dot green"></i>ทักไม่เกิน ${R.green} บาท</b>ห้ามปิด แม้ยังไม่มียอด คนทักวันนี้ครึ่งหนึ่งไปซื้อวันถัดไป ตัดสินเรื่องยอดหลังวิ่งครบ 3 วัน</div>
+      <div class="dl-rl yellow"><b><i class="dot yellow"></i>ทัก ${R.green + 1}-${R.yellow} บาท หรือเพิ่งเริ่ม</b>คงงบเดิม ห้ามเพิ่ม ดูอีก 1 วัน ถ้าเป็นแดง 2 วันติดค่อยปิด</div>
+      <div class="dl-rl red"><b><i class="dot red"></i>ทักเกิน ${R.yellow} บาท หรือไม่มีคนทัก</b>ใช้เงินเกิน ${R.minSpend} บาทแล้ว ลดงบครึ่งหนึ่ง วันที่ 2 ยังแดง = ปิด</div>
+      <div class="dl-rl old"><b><i class="dot old"></i>ยิงหาคนที่รู้จักเราแล้ว</b>ลูกค้าเก่า คนดูคลิป คนเคยทัก ไม่ดูบาทต่อทัก ดูยอด ROAS 4 ขึ้นไปเพิ่มงบได้ ต่ำกว่า 2 สามวันติด = ปิด</div>
+    </div>
+    <h3 class="sec-h">3. แคมเปญวันนี้ แยกตามไฟ <span class="small muted">หาคนใหม่เรียงจากทักถูกไปแพง${hasBud ? ' · ตัวแดงในช่อง "ใช้งบ" = งบหมด' : ''}</span></h3>
+    <div class="dl-grid">${block('green', 'หาคนใหม่ · ห้ามปิด', `มี ${Y.gnobuy} ตัวที่ทักถูกแต่ยังไม่มียอดที่มีมูลค่า ตัวพวกนี้คือตัวที่มักโดนปิดผิด`)}${block('old', 'คนที่รู้จักเราแล้ว', 'ลูกค้าเก่า + คนดูคลิป + คนเคยทัก ดูยอดอย่างเดียว เรียงจาก ROAS สูงไปต่ำ', true)}${block('yellow', 'หาคนใหม่ · คงไว้ ดูอีกวัน', 'ห้ามเพิ่มงบ')}${block('red', 'หาคนใหม่ · ลดงบครึ่ง / ปิด', `ทักแพงหรือไม่มีคนทัก และใช้เงินเกิน ${R.minSpend} บาทแล้ว`)}</div>
+    <h3 class="sec-h">4. ทำพรุ่งนี้ 3 ข้อ</h3>
+    <div class="brief-3">${Y.todo.map(t => `<div class="brief-box"><h4>${esc(t.t)}</h4>${esc(t.d)}</div>`).join('')}</div>`;
+}
+function renderBoss() {
+  const D = day(); if (!D) { $('#boss').textContent = 'ยังไม่ได้โหลดไฟล์'; return; }
+  const Y = ensureDaily(D); if (!Y) { $('#boss').textContent = 'ไม่มีข้อมูล'; return; }
+  const P = prevDay(), B = buildBoss(Y, D.layers, D.products, D.actual, P ? ensureDaily(P) : null), K = B.kpis, over = K.adpct !== null && K.adpct > B.target, MAX = Math.max(450, ...B.groups.map(g => g.ret), ...B.prods.map(g => g.ret)) * 1.05;
+  const bar = g => { const ok = g.ret >= B.need, w = g.ret / MAX * 100, col = ok ? '#2f9e6b' : g.ret >= B.need * 0.75 ? '#d97706' : '#c2410c', inside = w >= 72;
+    return `<div class="boss-br"><div class="boss-bl"><b>${esc(g.label)}</b><small>ใช้ ${n0(g.spend)} · ${n0(g.share)}% ของงบ${g.real ? ' · ยอดจริง' : ''}</small></div><div class="boss-bt"><i style="width:${w.toFixed(1)}%;background:${col}"></i><span class="boss-ref" style="left:${(B.need / MAX * 100).toFixed(1)}%"></span><em style="${inside ? `left:calc(${w.toFixed(1)}% - 54px);color:#fff` : `left:calc(${w.toFixed(1)}% + 8px)`}">${n0(g.ret)}</em></div><div class="boss-bn ${ok ? 'ok' : 'no'}">${ok ? '✓ คืนทุน' : g.ret >= B.need * 0.75 ? '✗ เกือบผ่าน' : '✗ ยังไม่คืนทุน'}</div></div>`; };
+  $('#boss').classList.remove('empty');
+  $('#boss').innerHTML = `
+    ${actualBoxHtml(D, 'boss')}
+    <div class="boss-sheet"><span class="boss-eyebrow">${esc(state.settings.appName || 'BLISSTECH AdBoard')} · สรุปแอดสำหรับผู้บริหาร · ${thDate(B.date)}</span>
+    <h3 class="boss-h1">${esc(B.headline)}</h3><p class="boss-lead">${esc(B.lead)}</p>
+    <div class="cards boss-kpis">
+      <div class="stat"><div class="t">ใช้เงินไป</div><div class="v num">${n0(K.spend)}</div>${K.prevSpend ? `<div class="sub">${thDate(P.date)} ใช้ ${n0(K.prevSpend)}</div>` : ''}</div>
+      <div class="stat ${B.real ? 'actual' : ''}"><div class="t">${B.real ? 'ยอดขายจริงจากออเดอร์' : 'ยอดขาย (Meta)'}</div><div class="v num">${n0(K.rev)}</div><div class="sub">${B.real ? `Meta เห็น ${n0(K.metaRev)}${K.orders ? ' · ' + n0(K.orders) + ' ออเดอร์จริง' : ''}` : `ออเดอร์ที่มียอดเงินจริง ${n0(K.valued)}`}</div></div>
+      <div class="stat ${over ? 'br-over' : 'br-pass'}"><div class="t">ค่าแอด${B.real ? 'จริง' : ''} · เป้าไม่เกิน ${B.target}%</div><div class="v num">${n0(K.adpct)}%</div><div class="sub">ขาย 100 บาท จ่ายค่าแอด ${n0(K.adpct)} บาท${B.real ? ` · ตาม Meta ${n0(K.metaAdpct)}%` : ''}</div></div>
+      <div class="stat"><div class="t">คนทักแชท</div><div class="v num">${n0(K.msgs)}</div><div class="sub">คนละ ${n0(K.cp)} บาท${K.prevCp ? (K.cp < K.prevCp ? ' ถูกลงจาก ' : ' แพงขึ้นจาก ') + n0(K.prevCp) : ''}</div></div>
+    </div>
+    <h3 class="sec-h">ลงทุนค่าแอด 100 บาท ได้ยอดขายกลับมากี่บาท <span class="small muted">เส้นประ = ${B.need} บาท คือจุดที่ค่าแอดเท่ากับเป้า ${B.target}% พอดี</span></h3>
+    <div class="boss-cols"><div><p class="dl-cap">แยกตามคนที่เรายิงหา (ยอดจาก Meta)</p>${B.groups.map(bar).join('')}</div><div><p class="dl-cap">แยกตามสินค้า</p>${B.prods.map(bar).join('')}</div></div>
+    ${B.problems.length ? `<h3 class="sec-h">${B.problems.length} เรื่องที่ทำให้ค่าแอด${over ? 'เกิน' : 'ยังลดได้อีก'} และวิธีแก้</h3><div class="boss-cards">${B.problems.map((p, i) => `<div class="boss-c"><div class="p"><span>ปัญหา ${i + 1}</span><b>${esc(p.title)}</b><small>${esc(p.detail)}</small></div><div class="f"><span>วิธีแก้</span><p>${esc(p.fix)}</p></div>${p.result ? `<div class="r">${esc(p.result)}</div>` : ''}</div>`).join('')}</div>` : ''}
+    <h3 class="sec-h">ผลที่คาด และสิ่งที่ขอให้ตัดสินใจ</h3>
+    <div class="boss-bottom"><div class="brief-box"><h4>ขอให้เจ้านายตัดสิน ${B.decisions.length} ข้อ</h4><ol>${B.decisions.map(d => `<li><b>${esc(d.t)}</b><small>${esc(d.d)}</small></li>`).join('') || '<li>ไม่มีเรื่องต้องตัดสิน ทำต่อแบบเดิม</li>'}</ol></div>
+      <div class="boss-result"><h4>ค่าแอดที่คาดหลังย้ายงบ</h4><div class="rr"><div><b>${n0(B.expect.now)}%</b><span>วันนี้</span></div><div class="ar">→</div><div><b>${n0(B.expect.next)}%</b><span>ภายใน 3-5 วัน</span></div></div><p>${B.expect.move ? `คิดจาก: ย้ายเงิน ${n0(B.expect.move)} บาทจากจุดที่ไม่คืนทุนไปจุดที่คืนทุนอยู่แล้ว ยอดขายจะเพิ่มจาก ${n0(B.expect.revNow)} เป็นราว ${n0(B.expect.revNext)} ด้วยเงินเท่าเดิม เป็นค่าประมาณแบบระวัง` : 'ไม่ต้องย้ายงบ'}${B.real ? '' : ' · ยอดยังเป็นของ Meta กรอกยอดจริงด้านบนเพื่อให้ตัวเลขนี้ตรงขึ้น'}</p></div></div>
+    ${B.good.length ? `<div class="boss-good"><b>สิ่งที่ทีมทำดีแล้ว:</b> ${esc(B.good.join(' · '))}</div>` : ''}</div>`;
+}
+async function viewPngBlob(elSel, prefix, title) {
+  const D = prefix === 'weekly' ? (curWeek() && { date: curWeek().start + '_' + curWeek().end }) : day(); if (!D) throw new Error('โหลดไฟล์ก่อน');
+  if (!window.htmlToImage) await new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.js'; sc.onload = ok; sc.onerror = () => no(new Error('โหลดตัวสร้างรูปไม่ได้ ตรวจอินเทอร์เน็ต')); document.head.appendChild(sc); });
+  let stage = document.getElementById('viewRender'); if (!stage) { stage = document.createElement('div'); stage.id = 'viewRender'; stage.style.cssText = 'position:fixed;left:-30000px;top:0;width:1400px;z-index:-1;pointer-events:none'; document.body.appendChild(stage); }
+  stage.innerHTML = `<div id="viewSheet" style="width:1400px;background:#F2F9FD;padding:24px;box-sizing:border-box"><div style="font-size:13px;color:#33475e;margin-bottom:6px">${esc(state.settings.appName || 'BLISSTECH AdBoard')} · ${esc(title)}</div>${$(elSel).innerHTML}</div>`;
+  stage.querySelectorAll('.actbox').forEach(n => n.remove());                      // ช่องกรอกไม่ต้องอยู่ในรูป
+  await new Promise(r => setTimeout(r, 250));
+  const blob = await window.htmlToImage.toBlob(stage.querySelector('#viewSheet'), { pixelRatio: 1.5, backgroundColor: '#F2F9FD' }); if (!blob) throw new Error('สร้างรูปไม่สำเร็จ');
+  return { blob, name: `${prefix}-${D.date}.png` };
+}
+function wireExport(view, elSel, prefix, title, captionFn) {
+  const msg = $(`#${view}Msg`), bPng = $(`#btn${view[0].toUpperCase() + view.slice(1)}Png`), bTg = $(`#btn${view[0].toUpperCase() + view.slice(1)}Tg`);
+  bPng.addEventListener('click', async () => { bPng.disabled = true; msg.textContent = 'กำลังสร้างรูป...';
+    try { const { blob, name } = await viewPngBlob(elSel, prefix, title); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 10000); msg.textContent = `ดาวน์โหลด ${name} แล้ว (${Math.round(blob.size / 1024)} KB)`; } catch (e) { msg.textContent = 'ไม่สำเร็จ: ' + e.message; } finally { bPng.disabled = false; } });
+  bTg.addEventListener('click', async () => { const D = view === 'weekly' ? (curWeek() && { date: curWeek().start }) : day(); if (!D) { msg.textContent = 'โหลดไฟล์ก่อน'; return; }
+    if (!tgReady()) { msg.textContent = 'ตั้งค่า Telegram ในหน้าตั้งค่าก่อน'; showView('settings'); return; }
+    bTg.disabled = true; msg.textContent = 'กำลังสร้างรูปและส่ง...';
+    try { const tg = await tgModule(), S = state.settings, { blob, name } = await viewPngBlob(elSel, prefix, title), caption = captionFn(D) + `\n${location.origin}${location.pathname}#/${view}`; let id;
+      try { id = S.tgAsFile ? await tg.sendDocument(S.tgToken, S.tgChat, blob, name, caption) : await tg.sendPhoto(S.tgToken, S.tgChat, blob, caption, name); } catch (e) { if (/dimension|too big|PHOTO/i.test(e.message)) id = await tg.sendDocument(S.tgToken, S.tgChat, blob, name, caption); else throw e; }
+      msg.textContent = `ส่งเข้ากลุ่มแล้ว (ข้อความ #${id})`; toast('ส่งเข้า Telegram แล้ว'); AB.emit('export:sent', { target: 'telegram-' + view, date: D.date, messageId: id });
+    } catch (e) { msg.textContent = 'ไม่สำเร็จ: ' + e.message; } finally { bTg.disabled = false; } });
+}
+wireExport('daily', '#daily', 'daily', 'รายงานรายวัน', D => { const am = actualMetrics(D.totals, D.products, D.actual); return `รายงานรายวัน ${thDate(D.date)}: ${D.daily ? D.daily.headline : ''}` + (am ? `\nค่าแอดจากยอดขายจริง ${am.adpct.toFixed(1)}% (ยอดจริง ${Math.round(am.rev).toLocaleString('en-US')} บาท)` : '\nยังไม่ได้กรอกยอดขายจริง'); });
+wireExport('boss', '#boss', 'boss', 'สรุปผู้บริหาร', D => { const B = buildBoss(ensureDaily(D), D.layers, D.products, D.actual, prevDay() ? ensureDaily(prevDay()) : null); return `สรุปผู้บริหาร ${thDate(D.date)}: ${B.headline}\n${B.lead}`; });
+
+// ---------- สรุปรายสัปดาห์ ----------
+const weekKey = (a, b) => `${a}_${b}`;
+const curWeek = () => state.week ? state.weeks[state.week] : null;
+function prevWeekOf(W) { const ks = Object.keys(state.weeks).filter(k => state.weeks[k].end < W.start).sort(); return ks.length ? state.weeks[ks[ks.length - 1]] : null; }
+function commitWeek(A, fileName) {
+  const key = weekKey(A.date, A.dateEnd), old = state.weeks[key] || {}, stub = { start: A.date, end: A.dateEnd }, P = prevWeekOf(stub);
+  const weekly = buildWeekly(A, A._rows, P ? P.weekly : null, old.actual || null);
+  state.weeks[key] = { fileName, uploadedAt: new Date().toISOString(), start: A.date, end: A.dateEnd, weekly, actual: old.actual || null,
+    src: { date: A.date, dateEnd: A.dateEnd, totals: A.totals, campaigns: A.campaigns.map(c => ({ name: c.name, product: c.product, layer: c.layer, spend: c.spend, msgs: c.msgs, noval: c.noval, purch: c.purch, rev: c.rev, bud: c.bud, budget: c.budget })), layers: A.layers.map(l => ({ layer: l.layer, spend: l.spend, rev: l.rev })), products: A.products.map(p => ({ name: p.name, spend: p.spend, rev: p.rev, spendShare: p.spendShare })) },
+    unresolved: A.unresolved.products.length };
+  const ks = Object.keys(state.weeks).sort(); while (ks.length > 12) delete state.weeks[ks.shift()];
+  save(KEYS.weeks, state.weeks); state.week = key; renderWeekly(); showView('weekly'); toast(`สรุปสัปดาห์ ${thDate(A.date)} - ${thDate(A.dateEnd)} เสร็จ`);
+}
+function rebuildWeek(W, useActual) { const P = prevWeekOf(W); const rows = W.weekly.trendRows || []; const keepTrend = W.weekly.trend, keepAge = null;
+  const A = { date: W.src.date, dateEnd: W.src.dateEnd, totals: W.src.totals, campaigns: W.src.campaigns, layers: W.src.layers, products: W.src.products };
+  const nw = buildWeekly(A, [], P ? P.weekly : null, useActual === undefined ? W.actual : useActual); nw.trend = keepTrend; nw.bestDay = W.weekly.bestDay; nw.worstDay = W.weekly.worstDay; W.weekly = nw; }
+/** รวมยอดขายจริงจากไฟล์รายวันที่อยู่ในช่วงของสัปดาห์ (อัตโนมัติ) */
+function weekActualFromDays(W) {
+  const rows = [], bp = {}; let rev = 0, orders = 0, spendEntered = 0, metaEntered = 0, entered = 0, hasOrders = true;
+  for (let t = new Date(W.start + 'T00:00:00Z'), e = new Date(W.end + 'T00:00:00Z'); t <= e; t.setUTCDate(t.getUTCDate() + 1)) {
+    const d = t.toISOString().slice(0, 10), D = state.days[d], a = D && D.actual && D.actual.rev > 0 ? D.actual : null;
+    rows.push({ date: d, hasFile: !!D, spend: D ? D.totals.spend : null, metaRev: D ? D.totals.rev : null, rev: a ? a.rev : null, orders: a && a.orders > 0 ? a.orders : null, adpct: a ? D.totals.spend / a.rev * 100 : null });
+    if (!a) continue; entered++; rev += a.rev; spendEntered += D.totals.spend || 0; metaEntered += D.totals.rev || 0; if (a.orders > 0) orders += a.orders; else hasOrders = false;
+    for (const pr of D.products || []) { const x = (a.byProduct || {})[pr.name]; if (x && x.rev > 0) { const o = bp[pr.name] || { rev: 0, spend: 0 }; o.rev += x.rev; o.spend += pr.spend || 0; bp[pr.name] = o; } }
+  }
+  return { rows, days: rows.length, entered, complete: entered === rows.length && entered > 0, rev, orders: hasOrders && orders > 0 ? orders : null, spendEntered, metaEntered, byProduct: bp, adpctEntered: rev > 0 ? spendEntered / rev * 100 : null };
+}
+async function readWeekFile(file) {
+  const msg = $('#wkDropMsg'); msg.textContent = `กำลังอ่าน ${file.name} ...`;
+  try {
+    if (!/\.xlsx?$/i.test(file.name)) throw new Error('ต้องเป็นไฟล์ .xlsx จาก Meta Ads');
+    if (typeof XLSX === 'undefined') throw new Error('โหลดตัวอ่าน Excel ไม่สำเร็จ ตรวจอินเทอร์เน็ตแล้วรีเฟรช');
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true }), sn = wb.SheetNames.find(n => /creative/i.test(n)) || wb.SheetNames[0];
+    const A = analyze(XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: null }), state.settings, state.clips, state.manual);
+    if (rangeDays(A.date, A.dateEnd) < 2) throw new Error(`ไฟล์นี้เป็นวันเดียว (${thDate(A.date)}) ให้โหลดที่หน้า "โหลดไฟล์" ของรายวัน ช่องนี้รับไฟล์ที่ดึงช่วง 7 วัน`);
+    msg.textContent = ''; commitWeek(A, file.name);
+  } catch (e) { msg.textContent = ''; $('#wkInfo').innerHTML = `<div class="warnbox">อ่านไฟล์ไม่ได้: ${esc(e.message)}</div>`; }
+}
+{ const d = $('#wkDrop'), fi = $('#wkFile');
+  d.addEventListener('dragover', e => { e.preventDefault(); d.classList.add('over'); }); d.addEventListener('dragleave', () => d.classList.remove('over'));
+  d.addEventListener('drop', e => { e.preventDefault(); d.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) readWeekFile(f); });
+  fi.addEventListener('change', e => { const f = e.target.files[0]; if (f) readWeekFile(f); fi.value = ''; });
+  $('#wkSelect').addEventListener('change', e => { state.week = e.target.value || null; renderWeekly(); }); }
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-wk-save]'); if (!b) return; const W = curWeek(); if (!W) return; const box = b.closest('.actbox'), num = v => { const n = parseFloat(v); return isNaN(n) || n < 0 ? null : n; };
+  const rev = num(box.querySelector('[data-wk="rev"]').value), orders = num(box.querySelector('[data-wk="orders"]').value);
+  W.actual = rev === null ? null : { rev, orders, byProduct: {}, updatedAt: new Date().toISOString() }; save(KEYS.weeks, state.weeks); renderWeekly(); toast(W.actual ? 'บันทึกยอดจริงของสัปดาห์แล้ว' : 'ล้างยอดจริงแล้ว');
+});
+function trendSvg(T, key, color, fmt, refVal, refLabel) {
+  const W = 640, H = 150, L = 34, Rr = 8, Tp = 18, B = 26, vals = T.map(t => t[key] ?? 0), mx = Math.max(...vals, refVal || 0, 1) * 1.12, pw = (W - L - Rr) / T.length, ph = H - Tp - B, peak = vals.indexOf(Math.max(...vals));
+  let o = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img">`;
+  for (const f of [0.5, 1]) { const y = Tp + ph - ph * f; o += `<line x1="${L}" x2="${W - Rr}" y1="${y}" y2="${y}" stroke="#e5eaf2"/><text x="${L - 5}" y="${y + 4}" font-size="10.5" text-anchor="end" fill="#8a94a6">${fmt(mx * f)}</text>`; }
+  o += `<line x1="${L}" x2="${W - Rr}" y1="${Tp + ph}" y2="${Tp + ph}" stroke="#c9d2e0"/>`;
+  T.forEach((t, i) => { const v = t[key] ?? 0, bh = ph * v / mx, bw = Math.min(pw - 10, 46), x = L + i * pw + (pw - bw) / 2, col = refVal && key === 'adpct' ? (v > refVal ? '#c2410c' : '#2f9e6b') : color;
+    if (v > 0) o += `<path d="M${x},${Tp + ph} v${-Math.max(bh - 4, 0)} q0,-4 4,-4 h${bw - 8} q4,0 4,4 v${Math.max(bh - 4, 0)} z" fill="${col}"><title>${thDate(t.day)} · ${fmt(v)}</title></path>`;
+    if (v > 0 && (T.length <= 8 || i === peak)) o += `<text x="${x + bw / 2}" y="${Tp + ph - bh - 4}" font-size="11" font-weight="700" text-anchor="middle" fill="#14213d">${fmt(v)}</text>`;
+    if (T.length <= 10 || i % 2 === 0) o += `<text x="${x + bw / 2}" y="${H - 8}" font-size="10.5" text-anchor="middle" fill="#5b6478">${+t.day.slice(8, 10)}/${+t.day.slice(5, 7)}</text>`; });
+  if (refVal) { const y = Tp + ph - ph * refVal / mx; o += `<line x1="${L}" x2="${W - Rr}" y1="${y}" y2="${y}" stroke="#14213d" stroke-dasharray="5 4" opacity=".6"/><text x="${W - Rr}" y="${y - 4}" font-size="10.5" text-anchor="end" fill="#14213d">${refLabel}</text>`; }
+  return o + '</svg>';
+}
+function renderWeekly() {
+  const ks = Object.keys(state.weeks).sort().reverse(); if (!state.week || !state.weeks[state.week]) state.week = ks[0] || null;
+  $('#wkSelect').innerHTML = ks.length ? ks.map(k => `<option value="${k}"${k === state.week ? ' selected' : ''}>${thDate(state.weeks[k].start)} - ${thDate(state.weeks[k].end)}</option>`).join('') : '<option value="">ยังไม่มี</option>';
+  const W = curWeek(), el = $('#weekly'); $('#wkInfo').innerHTML = '';
+  if (!W) { el.classList.add('empty'); el.textContent = 'ยังไม่ได้โหลดไฟล์รายสัปดาห์'; return; }
+  const AU = weekActualFromDays(W), manual = W.actual && W.actual.rev > 0 ? W.actual : null;
+  const autoFull = AU.complete ? { rev: AU.rev, orders: AU.orders, byProduct: Object.fromEntries(Object.entries(AU.byProduct).map(([n, x]) => [n, { rev: x.rev }])) } : null;
+  const eff = manual || autoFull, src = manual ? 'manual' : autoFull ? 'auto' : AU.entered ? 'partial' : 'none';
+  rebuildWeek(W, eff || null);
+  el.classList.remove('empty'); const Y = W.weekly, K = Y.kpis, P = Y.prev, B = Y.boss, over = K.adpct !== null && K.adpct > Y.rules.target, act = W.actual || {};
+  const MAX = Math.max(450, ...Y.layers.map(l => l.ret), ...Y.prods.map(p => p.ret)) * 1.05;
+  const bar = (label, sub, retv) => { const ok = retv >= Y.need, w = retv / MAX * 100, col = ok ? '#2f9e6b' : retv >= Y.need * 0.75 ? '#d97706' : '#c2410c', inside = w >= 72;
+    return `<div class="boss-br"><div class="boss-bl"><b>${esc(label)}</b><small>${sub}</small></div><div class="boss-bt"><i style="width:${w.toFixed(1)}%;background:${col}"></i><span class="boss-ref" style="left:${(Y.need / MAX * 100).toFixed(1)}%"></span><em style="${inside ? `left:calc(${w.toFixed(1)}% - 54px);color:#fff` : `left:calc(${w.toFixed(1)}% + 8px)`}">${n0(retv)}</em></div><div class="boss-bn ${ok ? 'ok' : 'no'}">${ok ? '✓ คืนทุน' : '✗ ยังไม่คืนทุน'}</div></div>`; };
+  const list = (rs, f) => rs.length ? `<ol>${rs.map(r => `<li><b>${esc(r.name)}</b><small>${f(r)}</small></li>`).join('')}</ol>` : '<p class="note">ไม่มีตัวที่เข้าเกณฑ์</p>';
+  el.innerHTML = `
+    <div class="actbox"><div class="actbox-h"><b>กรอกยอดจริงทั้งสัปดาห์เอง (ไม่บังคับ)</b><span class="small muted">${act.rev > 0 ? 'ใช้ยอดที่กรอกเองนี้แทนยอดรวมจากรายวัน · ลบตัวเลขแล้วบันทึกเพื่อกลับไปใช้ยอดรวมอัตโนมัติ' : 'ไม่ต้องกรอกก็ได้ แอปรวมยอดจริงจากรายวันให้เอง · กรอกเฉพาะเมื่อไม่ได้กรอกรายวัน'}</span></div>
+      <div class="actbox-g"><label>ยอดขายจริงรวม 7 วัน (บาท)<input type="number" min="0" data-wk="rev" value="${act.rev ?? ''}" placeholder="เช่น 320000"></label><label>จำนวนออเดอร์จริง<input type="number" min="0" data-wk="orders" value="${act.orders ?? ''}" placeholder="เช่น 410"></label><button class="btn" data-wk-save>บันทึกยอดจริง</button></div></div>
+    <div class="boss-sheet"><span class="boss-eyebrow">${esc(state.settings.appName || 'BLISSTECH AdBoard')} · สรุปรายสัปดาห์ · ${thDate(Y.start)} - ${thDate(Y.end)} (${Y.days} วัน)</span>
+    <h3 class="boss-h1">${esc(Y.headline)}</h3><p class="boss-lead">${esc(B.lead)}</p>
+    ${W.unresolved ? `<div class="warnbox">มี ${W.unresolved} แคมเปญที่จับสินค้าไม่ได้ จึงอยู่ในกลุ่ม "ไม่ระบุ" โหลดไฟล์รายวันสักวันแล้วเลือกสินค้าให้ชื่อเหล่านั้น แอปจะจำไว้ใช้กับรายสัปดาห์ด้วย</div>` : ''}
+    ${(() => { const T = Y.rules.target, pct = src === 'partial' ? AU.adpctEntered : (eff ? K.spend / eff.rev * 100 : null), cls = pct === null ? 'none' : pct > T ? 'over' : 'pass';
+      const dayTbl = `<div class="tbl-wrap"><table class="tbl wk-days"><thead><tr><th>วัน</th>${AU.rows.map(r => `<th class="r">${+r.date.slice(8, 10)}/${+r.date.slice(5, 7)}</th>`).join('')}</tr></thead><tbody>
+        <tr><td>ยอดขายจริง</td>${AU.rows.map(r => `<td class="r num">${r.rev !== null ? n0(r.rev) : `<span class="bad small">${r.hasFile ? 'ยังไม่กรอก' : 'ไม่มีไฟล์'}</span>`}</td>`).join('')}</tr>
+        <tr><td>ค่าแอดจริง</td>${AU.rows.map(r => `<td class="r num b ${r.adpct === null ? '' : r.adpct > T ? 'bad' : 'good'}">${r.adpct === null ? '-' : n0(r.adpct) + '%'}</td>`).join('')}</tr></tbody></table></div>`;
+      const prodChips = src === 'manual' ? '' : Object.entries(AU.byProduct).map(([n, x]) => { const a = x.spend / x.rev * 100; return `<span class="${a > T ? 'over' : 'pass'}"><b>${esc(n)}</b> ${n0(a)}%<small>ยอดจริง ${n0(x.rev)}</small></span>`; }).join('');
+      const head = src === 'auto' ? `รวมจากไฟล์รายวันครบ ${AU.days} วัน อัตโนมัติ` : src === 'partial' ? `รวมจากรายวันได้ ${AU.entered} จาก ${AU.days} วัน · ตัวเลขนี้คิดเฉพาะวันที่กรอกแล้ว` : src === 'manual' ? `ใช้ยอดที่กรอกเองด้านบน${AU.entered ? ` (ยอดรวมจากรายวัน ${AU.entered} วัน = ${n0(AU.rev)})` : ''}` : 'ยังไม่มียอดขายจริงของสัปดาห์นี้';
+      return `<div class="realbar ${cls}"><div class="rb-main"><span>ค่าแอดจากยอดขายจริง ทั้งสัปดาห์</span><b>${pct === null ? '?' : n1(pct) + '%'}</b><em>${pct === null ? 'ยังไม่มีข้อมูล' : pct > T ? `เกินเป้า ${T}% อยู่ ${n1(pct - T)} จุด` : `ผ่านเป้า ${T}% เหลืออีก ${n1(T - pct)} จุด`}</em></div>
+        <div class="rb-calc"><div><b>${head}</b></div>
+        ${pct === null ? '<div>กรอกยอดขายจริงในหน้า "รายงานรายวัน" ของแต่ละวัน แอปจะรวมมาให้ที่นี่เอง หรือกรอกยอดรวมทั้งสัปดาห์ในกล่องด้านบน</div>' : `<div>ใช้เงิน <b>${n0(src === 'partial' ? AU.spendEntered : K.spend)}</b> ÷ ยอดขายจริง <b>${n0(src === 'partial' ? AU.rev : eff.rev)}</b>${(src === 'partial' ? AU.orders : eff.orders) ? ` (${n0(src === 'partial' ? AU.orders : eff.orders)} ออเดอร์)` : ''} · ตาม Meta ${n0(src === 'partial' ? (AU.metaEntered > 0 ? AU.spendEntered / AU.metaEntered * 100 : null) : K.metaAdpct)}%</div>`}
+        ${AU.rows.length <= 14 ? dayTbl : ''}${prodChips ? `<div class="rb-prod">${prodChips}</div>` : ''}</div></div>`; })()}
+    <div class="cards boss-kpis">
+      <div class="stat"><div class="t">ใช้เงินทั้งสัปดาห์</div><div class="v num">${n0(K.spend)}</div><div class="sub">เฉลี่ยวันละ ${n0(K.spendPerDay)}</div>${deltaHtml(K.spend, P && P.spend, true, 'สัปดาห์ก่อน')}</div>
+      <div class="stat ${Y.real ? 'actual' : ''}"><div class="t">${Y.real ? 'ยอดขายจริงจากออเดอร์' : 'ยอดขาย (Meta)'}</div><div class="v num">${n0(K.rev)}</div><div class="sub">${Y.real ? `Meta เห็น ${n0(K.metaRev)}${K.orders ? ' · ' + n0(K.orders) + ' ออเดอร์จริง' : ''}` : `ออเดอร์มียอดเงิน ${n0(K.valued)}${K.noval ? ' · ไม่มียอด ' + n0(K.noval) : ''}`}</div>${deltaHtml(K.rev, P && P.rev, false, 'สัปดาห์ก่อน')}</div>
+      <div class="stat ${over ? 'br-over' : 'br-pass'}"><div class="t">ค่าแอด${Y.real ? 'จริง' : ''} · เป้าไม่เกิน ${Y.rules.target}%</div><div class="v num">${n0(K.adpct)}%</div><div class="sub">${Y.real ? `ตาม Meta ${n0(K.metaAdpct)}%` : `ขาย 100 บาท จ่ายค่าแอด ${n0(K.adpct)} บาท`}</div>${deltaHtml(K.adpct, P && P.adpct, true, 'สัปดาห์ก่อน', v => n0(v) + '%')}</div>
+      <div class="stat"><div class="t">คนทักแชท</div><div class="v num">${n0(K.msgs)}</div><div class="sub">วันละ ${n0(K.msgsPerDay)} คน · คนละ ${n0(K.cp)} บาท</div>${deltaHtml(K.cp, P && P.cp, true, 'สัปดาห์ก่อน', v => n0(v) + ' บาท/ทัก')}</div>
+    </div>
+    <h3 class="sec-h">1. แนวโน้มรายวันในสัปดาห์</h3>
+    ${Y.trend.length >= 2 ? `<div class="boss-cols"><div><p class="dl-cap">ค่าแอดแต่ละวัน (%) · แท่งแดง = เกินเป้า</p>${trendSvg(Y.trend, 'adpct', '#3b82c4', v => Math.round(v) + '%', Y.rules.target, 'เป้า ' + Y.rules.target + '%')}</div><div><p class="dl-cap">คนทักแต่ละวัน (คน)</p>${trendSvg(Y.trend, 'msgs', '#3b82c4', v => n0(v))}</div></div>
+      <p class="note">${Y.bestDay ? `วันที่ดีที่สุด ${thDate(Y.bestDay.day)} ค่าแอด ${n0(Y.bestDay.adpct)}%` : ''}${Y.worstDay ? ` · วันที่แย่ที่สุด ${thDate(Y.worstDay.day)} ค่าแอด ${n0(Y.worstDay.adpct)}% ให้ย้อนดูว่าวันนั้นเปิดหรือปิดแคมเปญอะไร` : ''}</p>` : `<div class="dl-nohour"><b>ไฟล์นี้ไม่ได้แยกรายวัน</b> จึงเห็นแต่ยอดรวมทั้งสัปดาห์ ถ้าอยากเห็นว่าวันไหนดีวันไหนแย่ ตอน export ให้เพิ่ม Breakdown → ตามเวลา → <b>วัน</b> (ได้คอลัมน์ "วัน" เพิ่มมา) แล้วโหลดใหม่</div>`}
+    <h3 class="sec-h">2. เงินทั้งสัปดาห์ไปไหน เทียบกับแผน <span class="small muted">แผน: หาคนใหม่ 30 · คนดูคลิป 25 · คนทัก 10 · ลูกค้าเก่า 35</span></h3>
+    <div class="tbl-wrap"><table class="tbl wk-tbl"><thead><tr><th>กลุ่มที่ยิงหา</th><th class="r">ใช้ทั้งสัปดาห์</th><th class="r">วันละ</th><th class="r">สัดส่วนจริง</th><th class="r">แผน</th><th class="r">ต่างจากแผน</th><th class="r">ลงทุน 100 ได้กลับ</th><th>สัปดาห์หน้าควรเป็นวันละ</th></tr></thead><tbody>${Y.layers.map(l => `<tr><td><span class="ltag l${l.layer}">${l.layer}</span> <b>${l.name}</b></td><td class="r num">${n0(l.spend)}</td><td class="r num">${n0(l.perDay)}</td><td class="r num b">${n0(l.share)}%</td><td class="r num">${l.plan}%</td><td class="r num ${Math.abs(l.gap) >= 10 ? 'bad' : ''}">${l.gap > 0 ? '+' : ''}${n0(l.gap)}</td><td class="r num b ${l.spend ? (l.ret >= Y.need ? 'good' : 'bad') : ''}">${l.spend ? n0(l.ret) : '-'}</td><td><b>${n0(Math.round(l.planPerDay / 100) * 100)}</b> <span class="muted small">${l.planPerDay > l.perDay * 1.15 ? '▲ เพิ่ม' : l.planPerDay < l.perDay * 0.85 ? '▼ ลด' : 'คงเดิม'}</span></td></tr>`).join('')}</tbody></table></div>
+    <h3 class="sec-h">3. ลงทุนค่าแอด 100 บาท ได้ยอดขายกลับมากี่บาท (ทั้งสัปดาห์) <span class="small muted">เส้นประ = ${Y.need} บาท คือจุดที่ผ่านเป้า</span></h3>
+    <div class="boss-cols"><div><p class="dl-cap">แยกตามคนที่เรายิงหา</p>${B.groups.map(g => bar(g.label, `ใช้ ${n0(g.spend)} · ${n0(g.share)}% ของงบ`, g.ret)).join('')}</div><div><p class="dl-cap">แยกตามสินค้า</p>${Y.prods.map(g => bar(g.label, `ใช้ ${n0(g.spend)} · ${n0(g.share)}% ของงบ`, g.ret)).join('')}</div></div>
+    <h3 class="sec-h">4. ตัวเด่นและตัวถ่วงของสัปดาห์</h3>
+    <div class="brief-3">
+      <div class="brief-box wk-good"><h4>ตัวทำเงิน 5 อันดับ</h4>${list(Y.winners, r => `ใช้ ${n0(r.spend)} ได้ ${n0(r.rev)} · ได้กลับ ${n0(r.roas * 100)} ต่อ 100`)}</div>
+      <div class="brief-box wk-bad"><h4>ตัวเผาเงิน 5 อันดับ</h4>${list(Y.burners, r => `ใช้ ${n0(r.spend)} ได้ ${n0(r.rev)} · ทัก ${r.cp === null ? '-' : n0(r.cp) + ' บาท/คน'}`)}</div>
+      <div class="brief-box"><h4>ตัวเปิดที่คนทักเยอะและถูก</h4>${list(Y.openers, r => `ทัก ${n0(r.msgs)} คน คนละ ${n0(r.cp)} บาท · ใช้ ${n0(r.spend)}`)}</div>
+    </div>
+    ${B.problems.length ? `<h3 class="sec-h">5. ${B.problems.length} เรื่องที่ต้องแก้สัปดาห์หน้า</h3><div class="boss-cards">${B.problems.map((p, i) => `<div class="boss-c"><div class="p"><span>ปัญหา ${i + 1}</span><b>${esc(p.title)}</b><small>${esc(p.detail)}</small></div><div class="f"><span>วิธีแก้</span><p>${esc(p.fix)}</p></div>${p.result ? `<div class="r">${esc(p.result)}</div>` : ''}</div>`).join('')}</div>` : ''}
+    <h3 class="sec-h">${B.problems.length ? 6 : 5}. แผนสัปดาห์หน้า และผลที่คาด</h3>
+    <div class="boss-bottom"><div class="brief-box"><h4>ขอให้ตัดสิน ${B.decisions.length} ข้อ</h4><ol>${B.decisions.map(d => `<li><b>${esc(d.t)}</b><small>${esc(d.d)}</small></li>`).join('') || '<li>ไม่มีเรื่องต้องตัดสิน ทำต่อแบบเดิม</li>'}</ol></div>
+      <div class="boss-result"><h4>ค่าแอดที่คาดสัปดาห์หน้า</h4><div class="rr"><div><b>${n0(B.expect.now)}%</b><span>สัปดาห์นี้</span></div><div class="ar">→</div><div><b>${n0(B.expect.next)}%</b><span>สัปดาห์หน้า</span></div></div><p>${B.expect.move ? `ย้ายเงินสัปดาห์ละ ${n0(B.expect.move)} บาทจากจุดที่ไม่คืนทุนไปจุดที่คืนทุน ยอดขายจากราว ${n0(B.expect.revNow)} เป็น ${n0(B.expect.revNext)} ด้วยเงินเท่าเดิม เป็นค่าประมาณแบบระวัง` : 'ไม่ต้องย้ายงบ'}</p><p>ไฟสัปดาห์นี้: เขียว ${Y.lights.green} · เหลือง ${Y.lights.yellow} · แดง ${Y.lights.red} · คนที่รู้จักเราแล้ว ${Y.lights.old} แคมเปญ</p></div></div>
+    ${B.good.length ? `<div class="boss-good"><b>สิ่งที่ทำได้ดีสัปดาห์นี้:</b> ${esc(B.good.join(' · '))}</div>` : ''}</div>`;
+}
+wireExport('weekly', '#weekly', 'weekly', 'สรุปรายสัปดาห์', () => { const W = curWeek(); return W ? `สรุปรายสัปดาห์ ${thDate(W.start)} - ${thDate(W.end)}: ${W.weekly.headline}\n${W.weekly.boss.lead}` : 'สรุปรายสัปดาห์'; });
+renderWeekly();
+
 // ---------- สรุปวันนี้ (ภาษาง่าย) ----------
 function renderBrief() {
   const D = day(); $('#brief').classList.toggle('empty', !D); if (!D) { $('#brief').textContent = 'ยังไม่ได้โหลดไฟล์'; return; }
@@ -336,6 +576,7 @@ function renderBrief() {
   const row = r => `<tr class="br-${r.cls}"><td class="name"><b>${esc(r.name)}</b><small>ใช้ ${n0(r.spend)} บาท · ${layerName[r.layer] || ''}</small></td>
     <td class="c num">${r.layer === 4 ? '-' : r.isStatic ? 'รูป' : Math.round(r.watch)}</td><td class="c num">${n1(r.ask)}</td><td class="c num">${n1(r.buy)}</td>
     <td><span class="btag2 ${r.cls}">${esc(r.tag)}</span></td><td class="say">${esc(r.say)}</td></tr>`;
+  $('#brief').classList.remove('empty');
   $('#brief').innerHTML = `
     <div class="brief-head"><span class="small muted">วันที่ ${thDate(B.date)}</span><h3>${esc(B.top.title)}</h3></div>
     <div class="cards">
@@ -536,7 +777,7 @@ $('#advice').addEventListener('input', e => {
   o[parts[parts.length - 1]] = el.textContent; D.advice.editedAt = new Date().toISOString();
   save(KEYS.days, state.days); if (parts[0] === 'headline') renderOverview();
 });
-async function adviceModule() { try { return await import('./advice.js?v=20260916084633'); } catch (e) { toast('ยังไม่มีส่วนคำแนะนำ (advice.js)'); return null; } }
+async function adviceModule() { try { return await import('./advice.js?v=20260921222650'); } catch (e) { toast('ยังไม่มีส่วนคำแนะนำ (advice.js)'); return null; } }
 $('#btnAdvice').addEventListener('click', async () => {
   const D = day(); if (!D) { toast('โหลดไฟล์ก่อน'); return; }
   if (!state.settings.apiKey) { toast('ใส่ API key ในหน้าตั้งค่าก่อน'); showView('settings'); return; }
@@ -561,7 +802,7 @@ $('#btnCsv').addEventListener('click', () => {
 });
 $('#btnPng').addEventListener('click', async () => {
   const D = day(); if (!D) { toast('โหลดไฟล์ก่อน'); return; }
-  let m; try { m = await import('./sheet.js?v=20260916084633'); } catch { $('#exportMsg').textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return; }
+  let m; try { m = await import('./sheet.js?v=20260921222650'); } catch { $('#exportMsg').textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return; }
   $('#exportMsg').textContent = 'กำลังสร้างรูป...'; $('#btnPng').disabled = true;
   try { const name = await m.exportPng(D, currentPlan(), $('#sheetHost')); $('#exportMsg').textContent = `ดาวน์โหลด ${name} แล้ว`; }
   catch (e) { $('#exportMsg').textContent = 'สร้างรูปไม่ได้: ' + e.message; }
@@ -569,7 +810,7 @@ $('#btnPng').addEventListener('click', async () => {
 });
 
 // ---------- Telegram ----------
-async function tgModule() { try { return await import('./telegram.js?v=20260916084633'); } catch { toast('ยังไม่มีส่วน Telegram (telegram.js)'); return null; } }
+async function tgModule() { try { return await import('./telegram.js?v=20260921222650'); } catch { toast('ยังไม่มีส่วน Telegram (telegram.js)'); return null; } }
 function tgReady() { const S = state.settings; return !!(S.tgToken && S.tgChat); }
 function tgCaption(D) {
   const T = D.totals, A = D.advice;
@@ -581,7 +822,7 @@ function tgCaption(D) {
 async function sendToTelegram(D, statusEl) {
   if (!tgReady()) { statusEl.textContent = 'ตั้งค่า bot token และกลุ่มในหน้าตั้งค่าก่อน'; showView('settings'); return false; }
   const tg = await tgModule(); if (!tg) return false;
-  let sheet; try { sheet = await import('./sheet.js?v=20260916084633'); } catch { statusEl.textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return false; }
+  let sheet; try { sheet = await import('./sheet.js?v=20260921222650'); } catch { statusEl.textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return false; }
   statusEl.textContent = 'กำลังสร้างรูปและส่ง...';
   try {
     const { blob, name } = await sheet.renderPngBlob(D, currentPlan(), $('#sheetHost'), 2);
@@ -730,6 +971,7 @@ const hashView = () => location.hash.replace(/^#\/?/, '');
 showView(hashView() || (state.date ? 'overview' : 'load'));
 // โหมดพัฒนา: ?auto=<path.xlsx> โหลดไฟล์อัตโนมัติ (ใช้กับ python -m http.server หรือ --allow-file-access-from-files)
 let autoView = null;
+{ const wa = new URLSearchParams(location.search).get('wauto'); if (wa) wa.split('|').reduce((ch, f) => ch.then(() => fetch(f)).then(r => r.blob()).then(b => readWeekFile(new File([b], f.split('/').pop()))), Promise.resolve()); }
 const auto = new URLSearchParams(location.search).get('auto');
 if (auto) autoView = hashView() || null;
-if (auto) fetch(auto).then(r => r.arrayBuffer()).then(b => runAnalysis(b, auto.split('/').pop())).catch(e => { $('#loadInfo').innerHTML = `<div class="warnbox">auto โหลดไม่ได้: ${esc(e.message)}</div>`; });
+if (auto) auto.split('|').reduce((chain, f) => chain.then(() => fetch(f)).then(r => r.arrayBuffer()).then(b => runAnalysis(b, f.split('/').pop())), Promise.resolve()).catch(e => { $('#loadInfo').innerHTML = `<div class="warnbox">auto โหลดไม่ได้: ${esc(e.message)}</div>`; });

@@ -20,7 +20,10 @@
 <div class="opshell">
   <nav class="opnav" id="nav">
     <button class="opnav-item on" data-view="load"><span><b>โหลดไฟล์</b><small>Creative Reporting .xlsx</small></span></button>
-    <button class="opnav-item" data-view="brief"><span><b>สรุปวันนี้</b><small>ภาษาง่าย ใครทำอะไร</small></span></button>
+    <button class="opnav-item" data-view="daily"><span><b>รายงานรายวัน</b><small>ตัวเลข งบ ไฟคุมแอด · ส่งกลุ่ม</small></span></button>
+    <button class="opnav-item" data-view="boss"><span><b>สรุปเจ้านาย</b><small>หน้าเดียว ปัญหา วิธีแก้</small></span></button>
+    <button class="opnav-item" data-view="weekly"><span><b>สรุปรายสัปดาห์</b><small>ไฟล์ 7 วัน · ส่งทุกวันจันทร์</small></span></button>
+    <button class="opnav-item" data-view="brief"><span><b>คอนเทนต์</b><small>คลิปไหนต้องแก้ตรงไหน</small></span></button>
     <button class="opnav-item" data-view="overview"><span><b>ภาพรวม</b><small>KPI เทียบวันก่อน</small></span></button>
     <button class="opnav-item" data-view="funnel"><span><b>กรวย</b><small>4 ชั้น + แยกสินค้า</small></span></button>
     <button class="opnav-item" data-view="journey"><span><b>ผังคอนเทนต์</b><small>ใครเห็นคลิปอะไร ต่อด้วยอะไร</small></span></button>
@@ -47,8 +50,28 @@
       <div id="daysList" class="empty">ยังไม่มี</div>
     </section>
 
+    <section data-view="daily" class="view hidden">
+      <h2 class="sec-h">รายงานรายวัน: ตัวเลข งบ และกติกาคุมแอด</h2>
+      <div class="row-btns"><button class="btn" id="btnDailyPng">ดาวน์โหลดรูป</button><button class="btn" id="btnDailyTg">ส่งเข้า Telegram</button><span class="small muted" id="dailyMsg"></span></div>
+      <div id="daily" class="empty">ยังไม่ได้โหลดไฟล์</div>
+    </section>
+    <section data-view="boss" class="view hidden">
+      <h2 class="sec-h">สรุปเจ้านาย: หน้าเดียว อ่านจบใน 1 นาที</h2>
+      <div class="row-btns"><button class="btn" id="btnBossPng">ดาวน์โหลดรูป</button><button class="btn" id="btnBossTg">ส่งเข้า Telegram</button><span class="small muted" id="bossMsg"></span></div>
+      <div id="boss" class="empty">ยังไม่ได้โหลดไฟล์</div>
+    </section>
+
+    <section data-view="weekly" class="view hidden">
+      <h2 class="sec-h">สรุปรายสัปดาห์: ภาพรวม 7 วัน แนวโน้ม เงินไปไหน และแผนสัปดาห์หน้า</h2>
+      <div class="hint">ช่องนี้รับ <b>ไฟล์ที่ดึงช่วง 7 วัน</b> (จันทร์-อาทิตย์) แยกจากไฟล์รายวัน ไม่ปนกัน ถ้าอยากเห็นกราฟรายวัน ตอน export ให้เพิ่ม Breakdown → ตามเวลา → วัน</div>
+      <div class="drop" id="wkDrop"><p><b>ลากไฟล์รายสัปดาห์ .xlsx มาวางที่นี่</b> หรือ <label class="linkish">เลือกไฟล์<input type="file" id="wkFile" accept=".xlsx,.xls" hidden></label></p><p class="small muted" id="wkDropMsg"></p></div>
+      <div id="wkInfo"></div>
+      <div class="row-btns"><label class="small muted">สัปดาห์ <select id="wkSelect"><option value="">ยังไม่มี</option></select></label><button class="btn" id="btnWeeklyPng">ดาวน์โหลดรูป</button><button class="btn" id="btnWeeklyTg">ส่งเข้า Telegram</button><span class="small muted" id="weeklyMsg"></span></div>
+      <div id="weekly" class="empty">ยังไม่ได้โหลดไฟล์รายสัปดาห์</div>
+    </section>
+
     <section data-view="brief" class="view hidden">
-      <h2 class="sec-h">สรุปวันนี้: เรื่องเดียวที่ต้องแก้ ใครทำอะไร และทุกแคมเปญเป็นคน 1,000 คน</h2>
+      <h2 class="sec-h">คอนเทนต์: คลิปไหนต้องแก้ตรงไหน (อ่านทุกแคมเปญเป็นคน 1,000 คน)</h2>
       <div class="row-btns"><button class="btn" id="btnBriefPng">ดาวน์โหลดรูป</button><button class="btn" id="btnBriefTg">ส่งเข้า Telegram</button><span class="small muted" id="briefMsg"></span></div>
       <div id="brief" class="empty">ยังไม่ได้โหลดไฟล์</div>
     </section>
@@ -140,6 +163,6 @@
 window.addEventListener('unhandledrejection', e => { document.getElementById('errlog').textContent += 'rejection: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason) + '\n'; });</script>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script type="module" src="app.js?v=20260916084633"></script>
+<script type="module" src="app.js?v=20260921222650"></script>
 </body>
 </html>

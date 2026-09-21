@@ -11,10 +11,11 @@ export const COLS = {
   'ประเภทผลลัพธ์': 'rtype', 'ผลลัพธ์': 'result', 'ความถี่': 'freq',
   'เริ่มการรายงาน': 'dateStart', 'สิ้นสุดการรายงาน': 'dateEnd',
   'ThruPlay': 'thru', 'การเล่นวิดีโอที่ 100%': 'v100', 'เวลาเล่นวิดีโอเฉลี่ย': 'avgt', 'ยอดดู': 'views',
+  'งบประมาณของแคมเปญ': 'bud', 'อายุ': 'age', 'เพศ': 'gender', 'วัน': 'day',
   'ความคิดเห็นต่อโพสต์': 'comments', 'จำนวนการแชร์โพสต์': 'shares', 'ต้นทุนต่อการเริ่มการสนทนาผ่านการส่งข้อความ': 'cpmsg',
 };
 const REQUIRED = ['camp', 'adset', 'ad', 'spend', 'purch', 'rev', 'imp', 'reach'];
-const NUM = ['reach', 'imp', 'spend', 'purch', 'rev', 'clicks', 'vplay', 'v50', 'v75', 'v95', 'eng', 'result', 'freq', 'thru', 'v100', 'avgt', 'views', 'comments', 'shares', 'cpmsg'];
+const NUM = ['reach', 'imp', 'spend', 'purch', 'rev', 'clicks', 'vplay', 'v50', 'v75', 'v95', 'eng', 'result', 'freq', 'thru', 'v100', 'avgt', 'views', 'comments', 'shares', 'cpmsg', 'bud'];
 
 export const LAYER_NAMES = { 1: 'หว่าน/คนใหม่', 2: 'คนดูคลิป/มีส่วนร่วม', 3: 'คนคุย', 4: 'ลูกค้าเก่า' };
 export const LAYER_ROLES = {
@@ -64,7 +65,7 @@ export const DEFAULT_SETTINGS = {
   ],
   layerPatterns: [
     { layer: 4, regex: 'คนซื้อ' },
-    { layer: 3, regex: 'คุย|INBOX 656' },
+    { layer: 3, regex: 'คุย|INBOX 656|RE/Inbox|Pancake' },
     { layer: 2, regex: 'คนดู|VDO View|ENG\\+INBOX' },
   ],
   lookalikeRegex: 'LAL|LOOKALIKE|คล้าย',
@@ -114,8 +115,9 @@ export function normalizeRows(rows) {
     const o = {};
     for (const h in map) o[map[h]] = r[h];
     for (const k of NUM) o[k] = num(o[k]);
-    for (const k of ['camp', 'adset', 'ad', 'place', 'status', 'rtype']) o[k] = str(o[k]);
+    for (const k of ['camp', 'adset', 'ad', 'place', 'status', 'rtype', 'age', 'gender']) o[k] = str(o[k]);
     o.dateStart = dateStr(o.dateStart); o.dateEnd = dateStr(o.dateEnd);
+    o.day = o.day === undefined || o.day === null || o.day === '' ? '' : dateStr(o.day);
     o.noval = (o.purch > 0 && o.rev === null) ? o.purch : 0;
     o.msgs = (o.cpmsg > 0 && o.spend > 0) ? o.spend / o.cpmsg : 0;   // จำนวนแชทที่เริ่ม = ใช้จ่าย ÷ ต้นทุนต่อแชท
     if (o.v95 === null && o.v100 !== null) o.v95 = o.v100;            // ไฟล์แบบใหม่ไม่มี 95% ใช้ 100% แทน
@@ -244,6 +246,7 @@ export function analyze(rows, settings = DEFAULT_SETTINGS, clips = [], manual = 
     const adsets = [...groupBy(rs, r => r.adset)].map(([as, srs]) => ({ name: as, layer: srs[0].layer, ...metrics(srs) }));
     const c = {
       name, product: rs[0].product, budget: rs[0].budget, budgetDate: rs[0].budgetDate,
+      bud: rs.reduce((m, r) => (r.bud !== null && r.bud !== undefined && r.bud > (m ?? 0) ? r.bud : m), null),
       ads: ads.sort((a, b) => b.spend - a.spend), adsets: adsets.sort((a, b) => b.spend - a.spend),
       stage: (topBy(ads, 'spend') || {}).stage || null,
       layer: (topBy(adsets, 'spend') || {}).layer || 1,
@@ -327,10 +330,11 @@ export function analyze(rows, settings = DEFAULT_SETTINGS, clips = [], manual = 
 
   const plan = buildPlan({ data, layers, productFunnels, adsets, campaigns }, S);
   const brief = buildBrief(campaigns, totals, layers, date);
+  const daily = buildDaily(campaigns, data, totals, date);
   const journey = buildJourney(ads, adsets, productFunnels.map(p => p.product));
   const behaviour = buildBehaviour(ads, adsets);
 
-  return { date, dateEnd, totals, campaigns, adsets, ads, places, layers, products, productFunnels, dupClips, dupAdsets, unresolved, plan, journey, behaviour, brief, rowCount: data.length };
+  return { date, dateEnd, totals, campaigns, adsets, ads, places, layers, products, productFunnels, dupClips, dupAdsets, unresolved, plan, journey, behaviour, brief, daily, rowCount: data.length, _rows: data };
 }
 
 // ---------- แผนคอนเทนต์และกลุ่มเป้าหมาย (auto) ----------
@@ -584,6 +588,130 @@ export function buildBrief(campaigns, totals, layers, date, R = BRIEF_RULES) {
   if (keep.length) adTasks.push({ t: 'เพิ่มงบตัวที่ "ห้ามแตะ"', d: keep.slice(0, 5).map(r => r.name).join(' · ') });
   const content = fix.slice(0, 5).map(r => ({ name: r.name, watch: r.watch, ask: r.ask, say: r.say }));
   return { date, target: R.target, kpis: { spend, rev, purch, adpct, msgs, costPerMsg: msgs ? spend / msgs : null }, top, adTasks, content, openers: openers.map(r => r.name), keep: keep.slice(0, 6), close, rows, rules: R };
+}
+
+// ---------- รายงานรายวัน (ทีมแอด) + สรุปเจ้านาย ----------
+export const DAILY_RULES = { green: 25, yellow: 40, minSpend: 150, target: 30, fullUse: 95, ageMinSpend: 300 };
+const r100 = x => Math.round(x / 100) * 100;
+export function dailyLight(r, R = DAILY_RULES) {
+  if (r.layer >= 2) return 'old';                                   // ยิงหาคนที่รู้จักเราแล้ว ตัดสินด้วยยอด ไม่ใช่บาทต่อทัก
+  if (r.cp === null) return (r.spend >= R.minSpend && !r.isNew) ? 'red' : 'yellow';
+  if (r.cp <= R.green) return 'green';
+  if (r.cp <= R.yellow || r.isNew || r.spend < R.minSpend) return 'yellow';
+  return 'red';
+}
+export function buildDaily(campaigns, data, totals, date, R = DAILY_RULES) {
+  const dm = date ? `${date.slice(8, 10)}-${date.slice(5, 7)}` : '';
+  const rows = campaigns.filter(c => c.spend > 0).map(c => {
+    const msgs = c.msgs || 0, noval = c.noval || 0;
+    const r = { name: briefName(c.name), camp: c.name, product: c.product, layer: c.layer, spend: c.spend, msgs, cp: msgs >= 0.5 ? c.spend / msgs : null, purch: c.purch || 0, noval, valued: (c.purch || 0) - noval,
+      rev: c.rev || 0, roas: c.spend > 0 ? (c.rev || 0) / c.spend : null, bud: c.bud ?? c.budget ?? null, isNew: !!dm && c.name.includes(dm) };
+    r.use = r.bud ? r.spend / r.bud * 100 : null; r.light = dailyLight(r, R); return r;
+  });
+  const groups = {}; for (const k of ['green', 'yellow', 'red', 'old']) groups[k] = rows.filter(r => r.light === k).sort((a, b) => k === 'old' ? (b.roas ?? 0) - (a.roas ?? 0) : (a.cp ?? 1e9) - (b.cp ?? 1e9));
+  const msgs = rows.reduce((t, r) => t + r.msgs, 0), spend = totals.spend || 0, rev = totals.rev || 0, noval = totals.noval || 0;
+  const kpis = { spend, rev, purch: totals.purch || 0, noval, valued: (totals.purch || 0) - noval, msgs, cp: msgs ? spend / msgs : null, adpct: rev > 0 ? spend / rev * 100 : null };
+  const withBud = rows.filter(r => r.bud), full = withBud.filter(r => r.use >= R.fullUse);
+  const budget = { has: withBud.length > 0, count: withBud.length, full: full.length, used: withBud.reduce((t, r) => t + r.spend, 0), set: withBud.reduce((t, r) => t + r.bud, 0) };
+  const agm = new Map();
+  for (const r of data) { if (!r.age || !r.gender || /unknown/i.test(r.gender)) continue; const k = r.gender + '|' + r.age; const o = agm.get(k) || { gender: r.gender, age: r.age, spend: 0, msgs: 0, rev: 0 }; o.spend += r.spend || 0; o.msgs += r.msgs || 0; o.rev += r.rev || 0; agm.set(k, o); }
+  const ageGender = [...agm.values()].filter(o => o.spend >= R.ageMinSpend).map(o => ({ ...o, cp: o.msgs ? o.spend / o.msgs : null, roas: o.spend ? o.rev / o.spend : null })).sort((a, b) => b.spend - a.spend);
+  const gnobuy = groups.green.filter(r => r.valued <= 0);
+  const boost = rows.filter(r => r.use !== null && r.use >= R.fullUse && r.rev >= 1500 && ((r.light === 'old' && r.roas >= 4) || (r.light === 'green' && r.roas >= 3)));
+  const todo = [{ t: `ห้ามปิดตัวเขียว ${groups.green.length} ตัว`, d: `มี ${gnobuy.length} ตัวที่ทักถูกแต่ยังไม่มียอดที่มีมูลค่า ปล่อยวิ่งให้ครบ 3 วัน และให้วิ่งถึง 22:00` },
+    groups.red.length ? { t: `ลดงบตัวแดง ${groups.red.length} ตัว`, d: `รวม ${Math.round(groups.red.reduce((t, r) => t + r.spend, 0)).toLocaleString('en-US')} บาท/วัน ได้ยอด ${Math.round(groups.red.reduce((t, r) => t + r.rev, 0)).toLocaleString('en-US')} ลดครึ่งวันนี้ ถ้าพรุ่งนี้ยังแดงให้ปิด` } : { t: 'ไม่มีตัวแดง', d: 'ไม่ต้องปิดอะไรวันนี้' },
+    boost.length ? { t: `เพิ่มงบ 20% ให้ ${boost.length} ตัวที่ขายได้และงบหมด`, d: boost.map(r => r.name).join(' · ') } : { t: 'ดึงไฟล์ Meta แยกชั่วโมง', d: 'Breakdown → ตามเวลา → ช่วงเวลาของวัน เพื่อรู้ว่างบหมดกี่โมง' }];
+  const over = kpis.adpct !== null && kpis.adpct > R.target;
+  const headline = (kpis.adpct === null ? 'ยังไม่มียอด' : `ค่าแอด ${kpis.adpct.toFixed(0)}% ${over ? 'เกินเป้า' : 'ผ่านเป้า'}`) + ` · คนทัก ${Math.round(msgs).toLocaleString('en-US')} คน` + (kpis.cp ? ` คนละ ${Math.round(kpis.cp)} บาท` : '') + (budget.has ? ` · งบหมด ${budget.full} ตัว` : '');
+  return { date, rules: R, headline, kpis, budget, ageGender, groups, gnobuy: gnobuy.length, todo, rows };
+}
+/** สรุปเจ้านาย: ลงทุน 100 ได้กลับเท่าไร + ปัญหาไม่เกิน 3 เรื่องพร้อมวิธีแก้ + ผลที่คาด · actual = ยอดขายจริงที่กรอก (ถ้ามี) · prev = daily ของวันก่อน (ถ้ามี) */
+export function buildBoss(daily, layers, products, actual = null, prev = null, R = DAILY_RULES, days = 1) {
+  const unit = days > 1 ? 'สัปดาห์ละ' : 'วันละ';
+  const K = daily.kpis, f = n => Math.round(n).toLocaleString('en-US'), ret = (rev, sp) => sp > 0 ? rev / sp * 100 : 0, need = Math.round(10000 / R.target);
+  const L = k => layers.find(l => l.layer === k) || { spend: 0, rev: 0 };
+  const grp = (label, ls) => { const sp = ls.reduce((t, l) => t + (l.spend || 0), 0), rv = ls.reduce((t, l) => t + (l.rev || 0), 0); return { label, spend: sp, share: K.spend ? sp / K.spend * 100 : 0, ret: ret(rv, sp), rev: rv }; };
+  const groups = [grp('หาคนใหม่', [L(1)]), grp('คนที่ดูคลิป/เคยทัก', [L(2), L(3)]), grp('ลูกค้าเก่า', [L(4)])].filter(g => g.spend > 0);
+  const bp = (actual && actual.byProduct) || {};
+  const prods = products.filter(p => p.spend > 0 && p.spendShare >= 3).map(p => { const a = bp[p.name]; const real = a && a.rev > 0; return { label: p.name, spend: p.spend, share: p.spendShare, ret: ret(real ? a.rev : p.rev, p.spend), real }; });
+  const realRev = actual && actual.rev > 0 ? actual.rev : null, factor = realRev && K.rev > 0 ? realRev / K.rev : 1;
+  const adNow = realRev ? K.spend / realRev * 100 : K.adpct;
+  // ---- ปัญหา
+  const problems = []; let saved = 0, lostRev = 0;
+  const worst = prods.filter(p => p.share >= 15 && p.ret < 200).sort((a, b) => a.ret - b.ret)[0];
+  if (worst) {
+    const l1 = daily.rows.filter(r => r.product === worst.label && r.layer === 1), bad = l1.filter(r => r.light === 'red' || (r.cp !== null && r.cp > R.green && !r.isNew && r.valued <= 0));
+    const sp = l1.reduce((t, r) => t + r.spend, 0), rv = l1.reduce((t, r) => t + r.rev, 0), ms = l1.reduce((t, r) => t + r.msgs, 0);
+    saved = bad.reduce((t, r) => t + r.spend, 0); lostRev = bad.reduce((t, r) => t + r.rev, 0); const bm = bad.reduce((t, r) => t + r.msgs, 0);
+    problems.push({ title: `${worst.label} หาคนใหม่ ${l1.length} แคมเปญ ใช้ ${f(sp)} บาท ยอดขาย ${f(rv)}`, detail: `มีคนทัก ${f(ms)} คน แต่ยังไม่มีโฆษณาตามไปปิดการขาย ${worst.label} ลงทุน 100 ได้กลับแค่ ${Math.round(worst.ret)} บาท`,
+      fix: bad.length ? `ปิด ${bad.length} ตัวที่คนทักแพง (ใช้ ${f(saved)} บาท ได้คนทัก ${f(bm)} คน) เก็บตัวที่ทักถูก และทำโฆษณาโปร ${worst.label} ยิงหาคนที่ทักแล้วยังไม่ซื้อ` : `คงตัวที่ทักถูกไว้ และทำโฆษณาโปร ${worst.label} ยิงหาคนที่ทักแล้วยังไม่ซื้อ`,
+      result: bad.length ? `ประหยัด${unit} ${f(saved)} บาท คนทักหายแค่ ${f(bm)} จาก ${f(K.msgs)}` : 'ยอดของสินค้านี้ขึ้นโดยไม่เพิ่มงบหาคนใหม่' });
+  }
+  const g4 = groups.find(g => g.label === 'ลูกค้าเก่า'), g23 = groups.find(g => g.label === 'คนที่ดูคลิป/เคยทัก');
+  const winners = daily.rows.filter(r => r.layer === 4 && r.roas >= 4 && r.rev >= 1500).sort((a, b) => b.roas - a.roas);
+  const cut = prev ? winners.map(w => { const p = prev.rows.find(x => x.name.replace(' 🆕', '') === w.name.replace(' 🆕', '')); return p && p.bud && w.bud && w.bud <= p.bud * 0.6 ? { ...w, was: p.bud } : null; }).filter(Boolean) : [];
+  if (g4 && g4.ret >= need && g4.share < 25 && winners.length) {
+    const w = cut[0] || winners[0];
+    problems.push({ title: cut.length ? 'ตัวทำเงินที่ดีที่สุดถูกลดงบ' : 'ลูกค้าเก่าทำเงินดีที่สุด แต่ได้งบน้อย', detail: `"${w.name}" ได้กลับ ${Math.round(w.roas * 100)} บาทต่อ 100` + (cut.length ? ` แต่งบถูกลดจาก ${f(w.was)} เหลือ ${f(w.bud)}` : '') + ` งบลูกค้าเก่ารวมแค่ ${Math.round(g4.share)}% ของทั้งหมด`,
+      fix: `เพิ่มงบ ${winners.slice(0, 2).map(x => `"${x.name}"`).join(' และ ')}` + (winners.some(x => x.use >= 85) ? ' ซึ่งงบหมดทุกวันอยู่แล้ว แปลว่ายังรับเงินเพิ่มได้' : ''), result: '' });
+  }
+  if (K.msgs >= 100 && (!g23 || g23.share < 20)) {
+    problems.push({ title: `คนทัก ${f(K.msgs)} คน แต่ใช้เงินตามคนทักแค่ ${f(g23 ? g23.spend : 0)} บาท`, detail: g23 && g23.ret >= 250 ? `โฆษณาตามคนที่ดูคลิป/เคยทัก ได้กลับ ${Math.round(g23.ret)} บาทต่อ 100 แต่ได้งบแค่ ${Math.round(g23.share)}%` : 'คนที่ทักแล้วยังไม่ซื้อ ไม่มีโฆษณาตามไปเตือน',
+      fix: 'เพิ่มงบโฆษณาตามคนทัก แยกสินค้า ใช้คลิปราคาพิเศษและภาพรีวิวที่มีอยู่ ไม่ต้องทำคลิปใหม่', result: '' });
+  }
+  // ---- ย้ายงบ + ผลที่คาด
+  let move = r100(Math.min(Math.max(saved, K.spend * 0.1), K.spend * 0.2)); if (!problems.length) move = 0;
+  const r4 = Math.min(g4 ? g4.ret / 100 : 3, 4), r2 = Math.min(g23 && g23.ret > 0 ? g23.ret / 100 : 2.5, 3), half = move / 2;
+  const hasOld = problems.some(p => /ลูกค้าเก่า|ตัวทำเงิน/.test(p.title)), hasChat = problems.some(p => /ตามคนทัก/.test(p.title));
+  const toOld = hasOld ? (hasChat ? half : move) : 0, toChat = hasChat ? (hasOld ? half : move) : 0;
+  for (const p of problems) { if (/ลูกค้าเก่า|ตัวทำเงิน/.test(p.title)) p.result = `เพิ่ม ${f(toOld)} บาท คาดยอดเพิ่มราว ${f(r100(toOld * r4))} บาท`; if (/ตามคนทัก/.test(p.title)) p.result = `เพิ่ม ${f(toChat)} บาท คาดยอดเพิ่มราว ${f(r100(toChat * r2))} บาท`; }
+  const revNext = (K.rev - lostRev * Math.min(1, move && saved ? 1 : 0) + toOld * r4 + toChat * r2) * factor;
+  const adNext = revNext > 0 && move ? K.spend / revNext * 100 : adNow;
+  const over = adNow !== null && adNow > R.target;
+  const decisions = [];
+  if (move) decisions.push({ t: `อนุมัติย้ายงบวันละ ${f(r100(move / days) || Math.round(move / days))} บาท` + (days > 1 ? ` (สัปดาห์ละ ${f(move)})` : ''), d: `จากจุดที่ไม่คืนทุน` + (toOld ? ` ไปลูกค้าเก่า ${f(toOld)}` : '') + (toChat ? ` ไปโฆษณาตามคนทัก ${f(toChat)}` : '') + ` · งบรวมเท่าเดิม ${unit} ${f(r100(K.spend))} บาท` });
+  if (winners.length) decisions.push({ t: 'ตั้งกฎ: ห้ามลดงบหรือปิดโฆษณาที่ได้กลับเกิน 400 บาทต่อ 100 โดยไม่แจ้ง', d: cut.length ? `กันไม่ให้เกิดแบบ "${cut[0].name}" อีก` : 'ตัวทำเงินต้องถูกปกป้องก่อน' });
+  if (!realRev) decisions.push({ t: 'ให้กรอกยอดขายจริงทุกวัน', d: K.noval > 0 ? `Meta บอกว่ามี ${f(K.purch)} ออเดอร์ แต่มียอดเงินจริง ${f(K.valued)} อีก ${f(K.noval)} เป็นยอดลม ตัดสินจาก Meta อย่างเดียวไม่ได้` : 'จะได้ค่าแอดจริง ไม่ใช่ค่าประมาณจาก Meta' });
+  const good = [];
+  if (prev && prev.kpis.cp && K.cp && K.cp < prev.kpis.cp) good.push(`คนทักถูกลงจาก ${Math.round(prev.kpis.cp)} เหลือ ${Math.round(K.cp)} บาท`);
+  for (const p of prods.filter(p => p.ret >= need).slice(0, 2)) good.push(`${p.label} ค่าแอด ${Math.round(10000 / p.ret)}% ผ่านเป้า`);
+  if (g23 && g23.ret >= need) good.push('โฆษณาตามคนที่ดูคลิป/เคยทัก คืนทุนแล้ว');
+  const spendUp = prev && prev.kpis.spend ? (K.spend - prev.kpis.spend) / prev.kpis.spend * 100 : null, g1 = groups[0];
+  const headline = !over ? `ค่าแอด ${adNow === null ? '-' : adNow.toFixed(0)}% ผ่านเป้า ${R.target}%` : (spendUp !== null && spendUp >= 20 && g1 && g1.ret < need ? `ใช้เงินเพิ่ม ${spendUp.toFixed(0)}% แต่เงินส่วนใหญ่ไปลงที่ "หาคนใหม่"${worst ? ' กับ ' + worst.label : ''} ซึ่งยังไม่คืนทุน` : `ค่าแอด ${adNow.toFixed(0)}% เกินเป้า เพราะเงิน ${g1 ? Math.round(g1.share) : 0}% ไปอยู่กับ "หาคนใหม่" ที่ยังไม่คืนทุน`);
+  const lead = over && move ? `แก้ได้โดยไม่เพิ่มงบ: ย้ายเงินวันละ ${f(r100(move / days) || Math.round(move / days))} บาท จากจุดที่ไม่คืนทุน ไปจุดที่คืนทุนอยู่แล้ว` : (over ? 'ต้องลดงบส่วนที่ไม่คืนทุน' : 'ทำต่อแบบเดิม เพิ่มงบตัวที่คืนทุนทีละ 20%');
+  return { date: daily.date, target: R.target, need, headline, lead, real: !!realRev, kpis: { spend: K.spend, rev: realRev || K.rev, metaRev: K.rev, adpct: adNow, metaAdpct: K.adpct, msgs: K.msgs, cp: K.cp, valued: K.valued, noval: K.noval, orders: actual && actual.orders > 0 ? actual.orders : null, prevSpend: prev ? prev.kpis.spend : null, prevCp: prev ? prev.kpis.cp : null },
+    groups, prods, problems: problems.slice(0, 3), decisions, good, expect: { now: adNow, next: adNext, move, revNow: realRev || K.rev, revNext } };
+}
+
+// ---------- สรุปรายสัปดาห์ (ไฟล์ช่วงหลายวัน) ----------
+export function rangeDays(start, end) { const a = new Date(start + 'T00:00:00Z'), b = new Date((end || start) + 'T00:00:00Z'); const n = Math.round((b - a) / 86400000) + 1; return isNaN(n) || n < 1 ? 1 : n; }
+/** A = ผลจาก analyze() ของไฟล์ช่วงหลายวัน · prevWeek = weekly ของสัปดาห์ก่อน (ถ้ามี) · actual = {rev, orders} ทั้งสัปดาห์ */
+export function buildWeekly(A, data, prevWeek = null, actual = null) {
+  const days = rangeDays(A.date, A.dateEnd), R = { ...DAILY_RULES, minSpend: DAILY_RULES.minSpend * days, ageMinSpend: DAILY_RULES.ageMinSpend * days };
+  const daily = buildDaily(A.campaigns, data || [], A.totals, '', R), K = daily.kpis;
+  const boss = buildBoss(daily, A.layers, A.products, actual, prevWeek ? prevWeek.daily : null, R, days);
+  // แนวโน้มรายวัน (มีเมื่อไฟล์แยกคอลัมน์ "วัน")
+  const dm = new Map();
+  for (const r of data || []) { if (!r.day) continue; const o = dm.get(r.day) || { day: r.day, spend: 0, rev: 0, msgs: 0, purch: 0, noval: 0 }; o.spend += r.spend || 0; o.rev += r.rev || 0; o.msgs += r.msgs || 0; o.purch += r.purch || 0; o.noval += r.noval || 0; dm.set(r.day, o); }
+  const trend = [...dm.values()].sort((a, b) => a.day.localeCompare(b.day)).map(o => ({ ...o, adpct: o.rev > 0 ? o.spend / o.rev * 100 : null, cp: o.msgs > 0 ? o.spend / o.msgs : null }));
+  // เงินไปไหน เทียบสัดส่วนที่ควรเป็น
+  const layers = [1, 2, 3, 4].map(L => { const l = A.layers.find(x => x.layer === L) || { spend: 0, rev: 0 }; const share = K.spend ? l.spend / K.spend * 100 : 0;
+    return { layer: L, name: { 1: 'หาคนใหม่', 2: 'คนดูคลิป', 3: 'คนทัก', 4: 'ลูกค้าเก่า' }[L], spend: l.spend, rev: l.rev, share, plan: LAYER_BUDGET_SHARE[L], gap: share - LAYER_BUDGET_SHARE[L], ret: l.spend > 0 ? l.rev / l.spend * 100 : 0, perDay: l.spend / days, planPerDay: K.spend / days * LAYER_BUDGET_SHARE[L] / 100 }; });
+  const rows = daily.rows, by = (f, n = 5) => [...rows].sort(f).slice(0, n);
+  const winners = by((a, b) => b.rev - a.rev).filter(r => r.roas >= 3 && r.rev > 0);
+  const burners = [...rows].filter(r => r.light !== 'green' && r.spend >= R.minSpend && (r.roas ?? 0) < 1.5).sort((a, b) => (b.spend - b.rev) - (a.spend - a.rev)).slice(0, 5);
+  const openers = [...daily.groups.green].sort((a, b) => b.msgs - a.msgs).slice(0, 5);
+  const realRev = actual && actual.rev > 0 ? actual.rev : null, adpct = realRev ? K.spend / realRev * 100 : K.adpct, over = adpct !== null && adpct > R.target;
+  const pk = prevWeek ? prevWeek.kpis : null;
+  const best = trend.length ? [...trend].filter(t => t.adpct !== null).sort((a, b) => a.adpct - b.adpct)[0] : null, worst = trend.length ? [...trend].filter(t => t.adpct !== null).sort((a, b) => b.adpct - a.adpct)[0] : null;
+  const offPlan = [...layers].sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap))[0];
+  const headline = (adpct === null ? 'ยังไม่มียอด' : `ค่าแอดทั้งสัปดาห์ ${adpct.toFixed(0)}% ${over ? 'เกินเป้า' : 'ผ่านเป้า'} ${R.target}%`) + (offPlan && Math.abs(offPlan.gap) >= 10 ? ` · งบ "${offPlan.name}" ${offPlan.gap > 0 ? 'มากกว่า' : 'น้อยกว่า'}แผน ${Math.abs(offPlan.gap).toFixed(0)} จุด` : '');
+  return { start: A.date, end: A.dateEnd, days, rules: R, headline, real: !!realRev,
+    kpis: { spend: K.spend, rev: realRev || K.rev, metaRev: K.rev, adpct, metaAdpct: K.adpct, msgs: K.msgs, cp: K.cp, valued: K.valued, noval: K.noval, purch: K.purch, orders: actual && actual.orders > 0 ? actual.orders : null, spendPerDay: K.spend / days, msgsPerDay: K.msgs / days, revPerDay: (realRev || K.rev) / days },
+    prev: pk ? { spend: pk.spend, rev: pk.rev, adpct: pk.adpct, cp: pk.cp, msgs: pk.msgs } : null,
+    trend, bestDay: best, worstDay: worst, layers, prods: boss.prods, need: boss.need, winners, burners, openers,
+    lights: { green: daily.groups.green.length, yellow: daily.groups.yellow.length, red: daily.groups.red.length, old: daily.groups.old.length },
+    boss, daily: { kpis: daily.kpis, rows: daily.rows.map(r => ({ name: r.name, bud: r.bud, layer: r.layer })) } };
 }
 
 export function mergePlan(autoPlan, savedPlan) {
