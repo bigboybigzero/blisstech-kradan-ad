@@ -236,8 +236,11 @@ export function analyze(rows, settings = DEFAULT_SETTINGS, clips = [], manual = 
     r.layer = ml[r.adset] || classifyLayer(r.adset, S);
     Object.assign(r, parseBudget(r.camp));
   }
-  const date = (data[0] && data[0].dateStart) || (totalRow && totalRow.dateStart) || '';
-  const dateEnd = (data[0] && data[0].dateEnd) || (totalRow && totalRow.dateEnd) || date;
+  // ช่วงวันของไฟล์ = เล็กสุด/ใหญ่สุดจากทุกแถว (ไฟล์ที่แยกคอลัมน์ "วัน" แต่ละแถวจะมีเริ่ม=สิ้นสุด=วันนั้น มีแต่แถวรวมที่เป็นช่วงจริง)
+  const isD = v => /^\d{4}-\d{2}-\d{2}$/.test(v || ''), allRows = totalRow ? [totalRow, ...data] : data;
+  const starts = allRows.flatMap(r => [r.dateStart, r.day]).filter(isD).sort(), ends = allRows.flatMap(r => [r.dateEnd, r.day]).filter(isD).sort();
+  const date = starts[0] || '';
+  const dateEnd = ends[ends.length - 1] || date;
 
   // แคมเปญ
   const campaigns = [...groupBy(data, r => r.camp)].map(([name, rs]) => {
