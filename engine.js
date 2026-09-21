@@ -646,7 +646,7 @@ export function buildBoss(daily, layers, products, actual = null, prev = null, R
     const l1 = daily.rows.filter(r => r.product === worst.label && r.layer === 1), bad = l1.filter(r => r.light === 'red' || (r.cp !== null && r.cp > R.green && !r.isNew && r.valued <= 0));
     const sp = l1.reduce((t, r) => t + r.spend, 0), rv = l1.reduce((t, r) => t + r.rev, 0), ms = l1.reduce((t, r) => t + r.msgs, 0);
     saved = bad.reduce((t, r) => t + r.spend, 0); lostRev = bad.reduce((t, r) => t + r.rev, 0); const bm = bad.reduce((t, r) => t + r.msgs, 0);
-    problems.push({ title: `${worst.label} หาคนใหม่ ${l1.length} แคมเปญ ใช้ ${f(sp)} บาท ยอดขาย ${f(rv)}`, detail: `มีคนทัก ${f(ms)} คน แต่ยังไม่มีโฆษณาตามไปปิดการขาย ${worst.label} ลงทุน 100 ได้กลับแค่ ${Math.round(worst.ret)} บาท`,
+    problems.push({ title: `${worst.label} หาคนใหม่ ${l1.length} แคมเปญ ใช้ ${f(sp)} บาท Meta เห็นยอดขาย ${f(rv)}`, detail: `มีคนทัก ${f(ms)} คน แต่ยังไม่มีโฆษณาตามไปปิดการขาย ${worst.label} ลงทุน 100 ได้กลับแค่ ${Math.round(worst.ret)} บาท`,
       fix: bad.length ? `ปิด ${bad.length} ตัวที่คนทักแพง (ใช้ ${f(saved)} บาท ได้คนทัก ${f(bm)} คน) เก็บตัวที่ทักถูก และทำโฆษณาโปร ${worst.label} ยิงหาคนที่ทักแล้วยังไม่ซื้อ` : `คงตัวที่ทักถูกไว้ และทำโฆษณาโปร ${worst.label} ยิงหาคนที่ทักแล้วยังไม่ซื้อ`,
       result: bad.length ? `ประหยัด${unit} ${f(saved)} บาท คนทักหายแค่ ${f(bm)} จาก ${f(K.msgs)}` : 'ยอดของสินค้านี้ขึ้นโดยไม่เพิ่มงบหาคนใหม่' });
   }

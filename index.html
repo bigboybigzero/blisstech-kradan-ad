@@ -21,7 +21,7 @@
   <nav class="opnav" id="nav">
     <button class="opnav-item on" data-view="load"><span><b>โหลดไฟล์</b><small>Creative Reporting .xlsx</small></span></button>
     <button class="opnav-item" data-view="daily"><span><b>รายงานรายวัน</b><small>ตัวเลข งบ ไฟคุมแอด · ส่งกลุ่ม</small></span></button>
-    <button class="opnav-item" data-view="boss"><span><b>สรุปเจ้านาย</b><small>หน้าเดียว ปัญหา วิธีแก้</small></span></button>
+    <button class="opnav-item" data-view="boss"><span><b>สรุปส่งหัวหน้า</b><small>สั้น อ่านจบใน 30 วินาที</small></span></button>
     <button class="opnav-item" data-view="weekly"><span><b>สรุปรายสัปดาห์</b><small>ไฟล์ 7 วัน · ส่งทุกวันจันทร์</small></span></button>
     <button class="opnav-item" data-view="brief"><span><b>คอนเทนต์</b><small>คลิปไหนต้องแก้ตรงไหน</small></span></button>
     <button class="opnav-item" data-view="overview"><span><b>ภาพรวม</b><small>KPI เทียบวันก่อน</small></span></button>
@@ -56,7 +56,7 @@
       <div id="daily" class="empty">ยังไม่ได้โหลดไฟล์</div>
     </section>
     <section data-view="boss" class="view hidden">
-      <h2 class="sec-h">สรุปเจ้านาย: หน้าเดียว อ่านจบใน 1 นาที</h2>
+      <h2 class="sec-h">สรุปส่งหัวหน้า: ผ่านเป้าไหม ปัญหาหลัก ทีมจะทำอะไร</h2>
       <div class="row-btns"><button class="btn" id="btnBossPng">ดาวน์โหลดรูป</button><button class="btn" id="btnBossTg">ส่งเข้า Telegram</button><span class="small muted" id="bossMsg"></span></div>
       <div id="boss" class="empty">ยังไม่ได้โหลดไฟล์</div>
     </section>
@@ -163,6 +163,6 @@
 window.addEventListener('unhandledrejection', e => { document.getElementById('errlog').textContent += 'rejection: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason) + '\n'; });</script>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script type="module" src="app.js?v=20260921230353"></script>
+<script type="module" src="app.js?v=20260922000101"></script>
 </body>
 </html>

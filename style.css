@@ -296,3 +296,17 @@ svg .c-ok{fill:#136b4b} svg .c-warn{fill:#9a5f10} svg .c-gap{fill:#a02b21}
 .rb-prod span{border-radius:10px;padding:4px 10px;background:#fff;border:1.5px solid;font-size:13.5px} .rb-prod span.pass{border-color:#9bd3b0} .rb-prod span.over{border-color:#f0c2ac} .rb-prod small{display:block;font-size:11.5px;color:rgb(var(--muted))}
 @media (max-width:900px){.realbar{grid-template-columns:1fr}}
 .wk-days{margin-top:8px;background:#fff;font-size:12.5px} .wk-days td,.wk-days th{padding:5px 8px} .wk-days td.good{color:#15803d} .wk-days td.bad,.wk-days .bad{color:#c2410c} .wk-days td.b{font-weight:700}
+
+/* สรุปส่งหัวหน้า (ฉบับสั้น) */
+.boss-sheet.ld{max-width:980px}
+.ld-verdict{display:grid;grid-template-columns:auto 1fr;gap:22px;align-items:center;border-radius:16px;padding:16px 22px;margin:10px 0 14px;border:2px solid}
+.ld-verdict.pass{border-color:#15803d;background:#f0faf3} .ld-verdict.over{border-color:#c2410c;background:#fff4ec} .ld-verdict.none{border-color:#b6c2d6;background:#fafcff}
+.ld-big span{display:block;font-size:13px;font-weight:700;color:#33475e} .ld-big b{font:700 58px/1.05 "Bai Jamjuree"} .ld-verdict.pass .ld-big b,.ld-verdict.pass .ld-say b{color:#15803d} .ld-verdict.over .ld-big b,.ld-verdict.over .ld-say b{color:#c2410c}
+.ld-say b{display:block;font:700 22px "Bai Jamjuree"} .ld-say span{font-size:14px;color:#33475e}
+.ld-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px} .ld-kpis div{background:#f6f9fd;border:1px solid var(--sky-line);border-radius:12px;padding:10px 14px} .ld-kpis span{display:block;font-size:12.5px;color:rgb(var(--muted))} .ld-kpis b{font:700 24px "Bai Jamjuree";color:#0b2540}
+.ld-chips{display:flex;gap:10px;flex-wrap:wrap} .ld-chip{border:2px solid;border-radius:12px;padding:8px 14px;font:700 22px "Bai Jamjuree";background:#fff;min-width:120px} .ld-chip b{display:block;font:600 13px "Anuphan";color:#33475e} .ld-chip small{display:block;font:500 11.5px "Anuphan";color:rgb(var(--muted))}
+.ld-chip.pass{border-color:#15803d;color:#15803d} .ld-chip.over{border-color:#c2410c;color:#c2410c} .ld-chip.none{border-color:#b6c2d6;color:#8a94a6;font-size:15px}
+.ld-prob{border-left:6px solid #c2410c;background:#fff4ec;border-radius:0 12px 12px 0;padding:12px 18px} .ld-prob b{font:700 17px "Bai Jamjuree";color:#0b2540} .ld-prob p{margin:4px 0 0;font-size:14.5px;line-height:1.55} .ld-prob .fix span{font-weight:700;color:#15803d}
+.ld-acts{margin:0;padding-left:22px} .ld-acts li{margin:6px 0;font-size:15px;line-height:1.5}
+.ld-ask{margin-top:14px;background:#14213d;color:#fff;border-radius:12px;padding:12px 18px;font-size:15px;line-height:1.55}
+@media (max-width:800px){.ld-verdict{grid-template-columns:1fr}.ld-kpis{grid-template-columns:1fr 1fr}}

@@ -1,8 +1,8 @@
 // app.js — หน้าจอกระดานแอด BLISSTECH (สถานะ, localStorage, เรนเดอร์ทุกหน้า)
-import { analyze, cloneDefaults, mergePlan, diffTotals, campaignsToCsv, MULTI_PRODUCT, LAYER_NAMES, shortCamp, actualMetrics, buildJourney, buildBehaviour, buildBrief, buildDaily, buildBoss, buildWeekly, rangeDays } from './engine.js?v=20260921230353';
-import { mainFunnelSvg, productFunnelSvg } from './funnel.js?v=20260921230353';
-import { createApi, loadPlugins } from './plugins.js?v=20260921230353';
-import * as ENGINE from './engine.js?v=20260921230353';
+import { analyze, cloneDefaults, mergePlan, diffTotals, campaignsToCsv, MULTI_PRODUCT, LAYER_NAMES, shortCamp, actualMetrics, buildJourney, buildBehaviour, buildBrief, buildDaily, buildBoss, buildWeekly, rangeDays } from './engine.js?v=20260922000101';
+import { mainFunnelSvg, productFunnelSvg } from './funnel.js?v=20260922000101';
+import { createApi, loadPlugins } from './plugins.js?v=20260922000101';
+import * as ENGINE from './engine.js?v=20260922000101';
 
 // ---------- เก็บข้อมูล ----------
 const KEYS = { settings: 'kad:settings', days: 'kad:days', plan: 'kad:plan', clips: 'kad:clips', manual: 'kad:manual', weeks: 'kad:weeks' };
@@ -36,7 +36,7 @@ const AB = createApi({
   setOverride: (date, name, patch) => { const D = state.days[date]; if (!D || !D.campaigns.some(c => c.name === name)) return false; D.overrides[name] = { ...(D.overrides[name] || {}), ...patch }; save(KEYS.days, state.days); renderDecisions(); return true; },
   setActual: (date, actual) => { const D = state.days[date]; if (!D) return false; D.actual = actual && actual.rev > 0 ? { ...actual, updatedAt: new Date().toISOString() } : null; save(KEYS.days, state.days); renderOverview(); return true; },
   addPlanItem: (layer, key, item) => { const layers = currentPlan(), p = layers.find(x => x.layer === layer); if (!p || !p[key]) return false; p[key].push({ ...item, source: 'team' }); savePlanFrom(layers); renderPlan(); renderFunnel(); return true; },
-  renderPngBlob: async (date) => { const D = (date ? state.days[date] : day()); if (!D) throw new Error('ยังไม่ได้โหลดไฟล์'); const m = await import('./sheet.js?v=20260921230353'); return (await m.renderPngBlob(D, currentPlan(), $('#sheetHost'))).blob; },
+  renderPngBlob: async (date) => { const D = (date ? state.days[date] : day()); if (!D) throw new Error('ยังไม่ได้โหลดไฟล์'); const m = await import('./sheet.js?v=20260922000101'); return (await m.renderPngBlob(D, currentPlan(), $('#sheetHost'))).blob; },
   onRegistryChange: () => { if (typeof renderPluginUi === 'function') renderPluginUi(); },
 });
 window.AdBoard = AB;
@@ -164,13 +164,13 @@ function commitPending() {
   state.date = A.date; state.pending = null;
   const q = new URLSearchParams(location.search); // โหมดพัฒนา
   if (q.get('sample')) adviceModule().then(m => { if (m) { rec.advice = m.sampleAdvice(rec, currentPlan()); save(KEYS.days, state.days); renderAdvice(); renderOverview(); } });
-  if (q.get('sheet')) import('./sheet.js?v=20260921230353').then(m => { $('#sheetHost').innerHTML = m.sheetHtml(rec, currentPlan()); }).catch(e => { $('#exportMsg').textContent = e.message; });
+  if (q.get('sheet')) import('./sheet.js?v=20260922000101').then(m => { $('#sheetHost').innerHTML = m.sheetHtml(rec, currentPlan()); }).catch(e => { $('#exportMsg').textContent = e.message; });
   if (q.get('actual') && (!q.get('actualfor') || q.get('actualfor') === A.date)) { const [r, o] = q.get('actual').split(',').map(Number); const bpd = {}; for (const kv of (q.get('actualp') || '').split(',').filter(Boolean)) { const [n, v] = kv.split(':'); bpd[n] = { rev: Number(v) }; } rec.actual = { rev: r, orders: o || null, note: 'dev', byProduct: bpd, updatedAt: new Date().toISOString() }; save(KEYS.days, state.days); }   // โหมดพัฒนา: ใส่ยอดจริงให้วันล่าสุด
   for (const kv of (q.get('actuals') || '').split(',').filter(Boolean)) { const [d, v] = kv.split(':'); if (d === A.date) { rec.actual = { rev: Number(v), orders: null, note: 'dev', byProduct: {}, updatedAt: new Date().toISOString() }; save(KEYS.days, state.days); } }
   if (q.get('vpng')) viewPngBlob('#' + q.get('vpng'), q.get('vpng'), 'test').then(r => { $('#' + q.get('vpng') + 'Msg').textContent = 'vpng ok ' + Math.round(r.blob.size / 1024) + 'KB'; }).catch(e => { $('#' + q.get('vpng') + 'Msg').textContent = 'vpng fail ' + e.message; });
   if (q.get('bpng')) briefPngBlob().then(r => { $('#briefMsg').textContent = 'bpng ok ' + Math.round(r.blob.size / 1024) + 'KB'; }).catch(e => { $('#briefMsg').textContent = 'bpng fail ' + e.message; });
   if (q.get('jpng')) journeyPngBlob('').then(r => { $('#journeyMsg').textContent = 'jpng ok ' + Math.round(r.blob.size / 1024) + 'KB'; }).catch(e => { $('#journeyMsg').textContent = 'jpng fail ' + e.message; });
-  if (q.get('png')) import('./sheet.js?v=20260921230353').then(m => m.exportPng(rec, currentPlan(), $('#sheetHost'), true)).then(r => { $('#exportMsg').textContent = 'png ok ' + r; }).catch(e => { $('#exportMsg').textContent = 'png fail ' + e.message; });
+  if (q.get('png')) import('./sheet.js?v=20260922000101').then(m => m.exportPng(rec, currentPlan(), $('#sheetHost'), true)).then(r => { $('#exportMsg').textContent = 'png ok ' + r; }).catch(e => { $('#exportMsg').textContent = 'png fail ' + e.message; });
   toast(`วิเคราะห์ ${thDate(A.date)} เสร็จ`);
   renderAll(); showView(autoView || 'daily');
   AB.emit('day:loaded', { date: A.date, fileName });
@@ -400,27 +400,31 @@ function renderDaily() {
 function renderBoss() {
   const D = day(); if (!D) { $('#boss').textContent = 'ยังไม่ได้โหลดไฟล์'; return; }
   const Y = ensureDaily(D); if (!Y) { $('#boss').textContent = 'ไม่มีข้อมูล'; return; }
-  const P = prevDay(), B = buildBoss(Y, D.layers, D.products, D.actual, P ? ensureDaily(P) : null), K = B.kpis, over = K.adpct !== null && K.adpct > B.target, MAX = Math.max(450, ...B.groups.map(g => g.ret), ...B.prods.map(g => g.ret)) * 1.05;
-  const bar = g => { const ok = g.ret >= B.need, w = g.ret / MAX * 100, col = ok ? '#2f9e6b' : g.ret >= B.need * 0.75 ? '#d97706' : '#c2410c', inside = w >= 72;
-    return `<div class="boss-br"><div class="boss-bl"><b>${esc(g.label)}</b><small>ใช้ ${n0(g.spend)} · ${n0(g.share)}% ของงบ${g.real ? ' · ยอดจริง' : ''}</small></div><div class="boss-bt"><i style="width:${w.toFixed(1)}%;background:${col}"></i><span class="boss-ref" style="left:${(B.need / MAX * 100).toFixed(1)}%"></span><em style="${inside ? `left:calc(${w.toFixed(1)}% - 54px);color:#fff` : `left:calc(${w.toFixed(1)}% + 8px)`}">${n0(g.ret)}</em></div><div class="boss-bn ${ok ? 'ok' : 'no'}">${ok ? '✓ คืนทุน' : g.ret >= B.need * 0.75 ? '✗ เกือบผ่าน' : '✗ ยังไม่คืนทุน'}</div></div>`; };
+  const P = prevDay(), B = buildBoss(Y, D.layers, D.products, D.actual, P ? ensureDaily(P) : null), K = B.kpis, T = B.target, over = K.adpct !== null && K.adpct > T;
+  const AM = actualMetrics(D.totals, D.products, D.actual), PAM = P ? actualMetrics(P.totals, P.products, P.actual) : null;
+  const prevPct = B.real ? (PAM ? PAM.adpct : null) : (P && P.daily ? P.daily.kpis.adpct : null);
+  // ค่าแอดต่อสินค้า (ใช้ยอดจริงถ้ากรอกแยกสินค้า ไม่งั้นใช้ Meta)
+  const chips = B.prods.filter(p => p.ret > 0 || p.spend > 0).map(p => { const ad = p.ret > 0 ? 10000 / p.ret : null, ok = ad !== null && ad <= T; return `<span class="ld-chip ${ad === null ? 'none' : ok ? 'pass' : 'over'}"><b>${esc(p.label)}</b>${ad === null ? 'ไม่มียอด' : n0(ad) + '%'}<small>ใช้ ${n0(p.spend)}${p.real ? ' · ยอดจริง' : ''}</small></span>`; }).join('');
+  const main = B.problems[0], R = Y.rules, G = Y.groups;
+  const acts = [];
+  if (G.red.length) acts.push(`ลดงบครึ่ง ${G.red.length} ตัวที่คนทักแพงเกิน ${R.yellow} บาท (ใช้วันละ ${n0(G.red.reduce((t, r) => t + r.spend, 0))} บาท) พรุ่งนี้ยังแพงจะปิด`);
+  acts.push(`คงไว้ ${G.green.length} ตัวที่คนทักถูก (ไม่เกิน ${R.green} บาท) ห้ามปิดแม้ยังไม่มียอด ให้วิ่งถึง 22:00`);
+  const boost = Y.rows.filter(r => r.use !== null && r.use >= R.fullUse && r.rev >= 1500 && ((r.light === 'old' && r.roas >= 4) || (r.light === 'green' && r.roas >= 3)));
+  if (boost.length) acts.push(`เพิ่มงบ 20% ให้ ${boost.length} ตัวที่ขายได้และงบหมดทุกวัน: ${boost.map(r => r.name).join(' · ')}`);
+  if (!B.real) acts.push('กรอกยอดขายจริงของวันนี้ เพื่อให้รู้ค่าแอดจริง');
   $('#boss').classList.remove('empty');
   $('#boss').innerHTML = `
     ${actualBoxHtml(D, 'boss')}
-    <div class="boss-sheet"><span class="boss-eyebrow">${esc(state.settings.appName || 'BLISSTECH AdBoard')} · สรุปแอดสำหรับผู้บริหาร · ${thDate(B.date)}</span>
-    <h3 class="boss-h1">${esc(B.headline)}</h3><p class="boss-lead">${esc(B.lead)}</p>
-    <div class="cards boss-kpis">
-      <div class="stat"><div class="t">ใช้เงินไป</div><div class="v num">${n0(K.spend)}</div>${K.prevSpend ? `<div class="sub">${thDate(P.date)} ใช้ ${n0(K.prevSpend)}</div>` : ''}</div>
-      <div class="stat ${B.real ? 'actual' : ''}"><div class="t">${B.real ? 'ยอดขายจริงจากออเดอร์' : 'ยอดขาย (Meta)'}</div><div class="v num">${n0(K.rev)}</div><div class="sub">${B.real ? `Meta เห็น ${n0(K.metaRev)}${K.orders ? ' · ' + n0(K.orders) + ' ออเดอร์จริง' : ''}` : `ออเดอร์ที่มียอดเงินจริง ${n0(K.valued)}`}</div></div>
-      <div class="stat ${over ? 'br-over' : 'br-pass'}"><div class="t">ค่าแอด${B.real ? 'จริง' : ''} · เป้าไม่เกิน ${B.target}%</div><div class="v num">${n0(K.adpct)}%</div><div class="sub">ขาย 100 บาท จ่ายค่าแอด ${n0(K.adpct)} บาท${B.real ? ` · ตาม Meta ${n0(K.metaAdpct)}%` : ''}</div></div>
-      <div class="stat"><div class="t">คนทักแชท</div><div class="v num">${n0(K.msgs)}</div><div class="sub">คนละ ${n0(K.cp)} บาท${K.prevCp ? (K.cp < K.prevCp ? ' ถูกลงจาก ' : ' แพงขึ้นจาก ') + n0(K.prevCp) : ''}</div></div>
-    </div>
-    <h3 class="sec-h">ลงทุนค่าแอด 100 บาท ได้ยอดขายกลับมากี่บาท <span class="small muted">เส้นประ = ${B.need} บาท คือจุดที่ค่าแอดเท่ากับเป้า ${B.target}% พอดี</span></h3>
-    <div class="boss-cols"><div><p class="dl-cap">แยกตามคนที่เรายิงหา (ยอดจาก Meta)</p>${B.groups.map(bar).join('')}</div><div><p class="dl-cap">แยกตามสินค้า</p>${B.prods.map(bar).join('')}</div></div>
-    ${B.problems.length ? `<h3 class="sec-h">${B.problems.length} เรื่องที่ทำให้ค่าแอด${over ? 'เกิน' : 'ยังลดได้อีก'} และวิธีแก้</h3><div class="boss-cards">${B.problems.map((p, i) => `<div class="boss-c"><div class="p"><span>ปัญหา ${i + 1}</span><b>${esc(p.title)}</b><small>${esc(p.detail)}</small></div><div class="f"><span>วิธีแก้</span><p>${esc(p.fix)}</p></div>${p.result ? `<div class="r">${esc(p.result)}</div>` : ''}</div>`).join('')}</div>` : ''}
-    <h3 class="sec-h">ผลที่คาด และสิ่งที่ขอให้ตัดสินใจ</h3>
-    <div class="boss-bottom"><div class="brief-box"><h4>ขอให้เจ้านายตัดสิน ${B.decisions.length} ข้อ</h4><ol>${B.decisions.map(d => `<li><b>${esc(d.t)}</b><small>${esc(d.d)}</small></li>`).join('') || '<li>ไม่มีเรื่องต้องตัดสิน ทำต่อแบบเดิม</li>'}</ol></div>
-      <div class="boss-result"><h4>ค่าแอดที่คาดหลังย้ายงบ</h4><div class="rr"><div><b>${n0(B.expect.now)}%</b><span>วันนี้</span></div><div class="ar">→</div><div><b>${n0(B.expect.next)}%</b><span>ภายใน 3-5 วัน</span></div></div><p>${B.expect.move ? `คิดจาก: ย้ายเงิน ${n0(B.expect.move)} บาทจากจุดที่ไม่คืนทุนไปจุดที่คืนทุนอยู่แล้ว ยอดขายจะเพิ่มจาก ${n0(B.expect.revNow)} เป็นราว ${n0(B.expect.revNext)} ด้วยเงินเท่าเดิม เป็นค่าประมาณแบบระวัง` : 'ไม่ต้องย้ายงบ'}${B.real ? '' : ' · ยอดยังเป็นของ Meta กรอกยอดจริงด้านบนเพื่อให้ตัวเลขนี้ตรงขึ้น'}</p></div></div>
-    ${B.good.length ? `<div class="boss-good"><b>สิ่งที่ทีมทำดีแล้ว:</b> ${esc(B.good.join(' · '))}</div>` : ''}</div>`;
+    <div class="boss-sheet ld"><span class="boss-eyebrow">${esc(state.settings.appName || 'BLISSTECH AdBoard')} · สรุปส่งหัวหน้า · ${thDate(B.date)}</span>
+    <div class="ld-verdict ${K.adpct === null ? 'none' : over ? 'over' : 'pass'}"><div class="ld-big"><span>ค่าแอด${B.real ? 'จากยอดขายจริง' : ' (ตาม Meta)'}</span><b>${K.adpct === null ? '-' : n1(K.adpct) + '%'}</b></div>
+      <div class="ld-say"><b>${K.adpct === null ? 'ยังไม่มียอด' : over ? `✗ เกินเป้า ${T}% อยู่ ${n1(K.adpct - T)} จุด` : `✓ ผ่านเป้า ${T}%`}</b>
+        <span>${prevPct ? `${thDate(P.date)} อยู่ที่ ${n1(prevPct)}% ${K.adpct < prevPct ? '▼ ดีขึ้น' : '▲ แย่ลง'}` : ''}${B.real ? `${prevPct ? ' · ' : ''}ตาม Meta ${n0(K.metaAdpct)}%` : `${prevPct ? ' · ' : ''}ยังไม่ได้กรอกยอดขายจริง ตัวเลขนี้เป็นของ Meta ซึ่งมักเห็นยอดไม่ครบ`}</span></div></div>
+    <div class="ld-kpis"><div><span>ใช้เงิน</span><b>${n0(K.spend)}</b></div><div><span>${B.real ? 'ยอดขายจริง' : 'ยอดขาย (Meta)'}</span><b>${n0(K.rev)}</b></div><div><span>${K.orders ? 'ออเดอร์จริง' : 'ออเดอร์ที่มียอด'}</span><b>${n0(K.orders || K.valued)}</b></div><div><span>คนทัก · คนละ ${n0(K.cp)} บาท</span><b>${n0(K.msgs)}</b></div></div>
+    <h3 class="sec-h">ค่าแอดแยกสินค้า <span class="small muted">เขียว = ไม่เกิน ${T}%</span></h3><div class="ld-chips">${chips}</div>
+    ${main ? `<h3 class="sec-h">ปัญหาหลักวันนี้</h3><div class="ld-prob"><b>${esc(main.title)}</b><p>${esc(main.detail)}</p><p class="fix"><span>วิธีแก้</span> ${esc(main.fix)}</p></div>` : ''}
+    <h3 class="sec-h">ทีมจะทำพรุ่งนี้</h3><ol class="ld-acts">${acts.slice(0, 4).map(a => `<li>${esc(a)}</li>`).join('')}</ol>
+    ${B.expect.move ? `<div class="ld-ask"><b>ขออนุมัติ:</b> ย้ายงบวันละ ${n0(B.expect.move)} บาท จากตัวที่ไม่คืนทุน ไปตัวที่ขายได้ งบรวมเท่าเดิม · คาดค่าแอดลงจาก ${n0(B.expect.now)}% เหลือราว ${n0(B.expect.next)}% ใน 3-5 วัน</div>` : ''}
+    </div>`;
 }
 async function viewPngBlob(elSel, prefix, title) {
   const D = prefix === 'weekly' ? (curWeek() && { date: curWeek().start + '_' + curWeek().end }) : day(); if (!D) throw new Error('โหลดไฟล์ก่อน');
@@ -445,7 +449,7 @@ function wireExport(view, elSel, prefix, title, captionFn) {
     } catch (e) { msg.textContent = 'ไม่สำเร็จ: ' + e.message; } finally { bTg.disabled = false; } });
 }
 wireExport('daily', '#daily', 'daily', 'รายงานรายวัน', D => { const am = actualMetrics(D.totals, D.products, D.actual); return `รายงานรายวัน ${thDate(D.date)}: ${D.daily ? D.daily.headline : ''}` + (am ? `\nค่าแอดจากยอดขายจริง ${am.adpct.toFixed(1)}% (ยอดจริง ${Math.round(am.rev).toLocaleString('en-US')} บาท)` : '\nยังไม่ได้กรอกยอดขายจริง'); });
-wireExport('boss', '#boss', 'boss', 'สรุปผู้บริหาร', D => { const B = buildBoss(ensureDaily(D), D.layers, D.products, D.actual, prevDay() ? ensureDaily(prevDay()) : null); return `สรุปผู้บริหาร ${thDate(D.date)}: ${B.headline}\n${B.lead}`; });
+wireExport('boss', '#boss', 'boss', 'สรุปส่งหัวหน้า', D => { const B = buildBoss(ensureDaily(D), D.layers, D.products, D.actual, prevDay() ? ensureDaily(prevDay()) : null); const am = actualMetrics(D.totals, D.products, D.actual); return `สรุปส่งหัวหน้า ${thDate(D.date)}\nค่าแอด${am ? 'จริง ' + am.adpct.toFixed(1) : ' (Meta) ' + (B.kpis.adpct === null ? '-' : B.kpis.adpct.toFixed(0))}% ${B.kpis.adpct > B.target ? 'เกินเป้า' : 'ผ่านเป้า'} · ใช้ ${Math.round(B.kpis.spend).toLocaleString('en-US')} · ยอด ${Math.round(B.kpis.rev).toLocaleString('en-US')} · คนทัก ${Math.round(B.kpis.msgs).toLocaleString('en-US')}`; });
 
 // ---------- สรุปรายสัปดาห์ ----------
 const weekKey = (a, b) => `${a}_${b}`;
@@ -777,7 +781,7 @@ $('#advice').addEventListener('input', e => {
   o[parts[parts.length - 1]] = el.textContent; D.advice.editedAt = new Date().toISOString();
   save(KEYS.days, state.days); if (parts[0] === 'headline') renderOverview();
 });
-async function adviceModule() { try { return await import('./advice.js?v=20260921230353'); } catch (e) { toast('ยังไม่มีส่วนคำแนะนำ (advice.js)'); return null; } }
+async function adviceModule() { try { return await import('./advice.js?v=20260922000101'); } catch (e) { toast('ยังไม่มีส่วนคำแนะนำ (advice.js)'); return null; } }
 $('#btnAdvice').addEventListener('click', async () => {
   const D = day(); if (!D) { toast('โหลดไฟล์ก่อน'); return; }
   if (!state.settings.apiKey) { toast('ใส่ API key ในหน้าตั้งค่าก่อน'); showView('settings'); return; }
@@ -802,7 +806,7 @@ $('#btnCsv').addEventListener('click', () => {
 });
 $('#btnPng').addEventListener('click', async () => {
   const D = day(); if (!D) { toast('โหลดไฟล์ก่อน'); return; }
-  let m; try { m = await import('./sheet.js?v=20260921230353'); } catch { $('#exportMsg').textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return; }
+  let m; try { m = await import('./sheet.js?v=20260922000101'); } catch { $('#exportMsg').textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return; }
   $('#exportMsg').textContent = 'กำลังสร้างรูป...'; $('#btnPng').disabled = true;
   try { const name = await m.exportPng(D, currentPlan(), $('#sheetHost')); $('#exportMsg').textContent = `ดาวน์โหลด ${name} แล้ว`; }
   catch (e) { $('#exportMsg').textContent = 'สร้างรูปไม่ได้: ' + e.message; }
@@ -810,7 +814,7 @@ $('#btnPng').addEventListener('click', async () => {
 });
 
 // ---------- Telegram ----------
-async function tgModule() { try { return await import('./telegram.js?v=20260921230353'); } catch { toast('ยังไม่มีส่วน Telegram (telegram.js)'); return null; } }
+async function tgModule() { try { return await import('./telegram.js?v=20260922000101'); } catch { toast('ยังไม่มีส่วน Telegram (telegram.js)'); return null; } }
 function tgReady() { const S = state.settings; return !!(S.tgToken && S.tgChat); }
 function tgCaption(D) {
   const T = D.totals, A = D.advice;
@@ -822,7 +826,7 @@ function tgCaption(D) {
 async function sendToTelegram(D, statusEl) {
   if (!tgReady()) { statusEl.textContent = 'ตั้งค่า bot token และกลุ่มในหน้าตั้งค่าก่อน'; showView('settings'); return false; }
   const tg = await tgModule(); if (!tg) return false;
-  let sheet; try { sheet = await import('./sheet.js?v=20260921230353'); } catch { statusEl.textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return false; }
+  let sheet; try { sheet = await import('./sheet.js?v=20260922000101'); } catch { statusEl.textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return false; }
   statusEl.textContent = 'กำลังสร้างรูปและส่ง...';
   try {
     const { blob, name } = await sheet.renderPngBlob(D, currentPlan(), $('#sheetHost'), 2);
