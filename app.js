@@ -1,11 +1,11 @@
 // app.js — หน้าจอกระดานแอด BLISSTECH (สถานะ, localStorage, เรนเดอร์ทุกหน้า)
-import { analyze, cloneDefaults, mergePlan, diffTotals, campaignsToCsv, MULTI_PRODUCT, LAYER_NAMES, shortCamp, actualMetrics, buildJourney, buildBehaviour, buildBrief, buildDaily, buildBoss, buildWeekly, rangeDays } from './engine.js?v=20260922000101';
-import { mainFunnelSvg, productFunnelSvg } from './funnel.js?v=20260922000101';
-import { createApi, loadPlugins } from './plugins.js?v=20260922000101';
-import * as ENGINE from './engine.js?v=20260922000101';
+import { analyze, cloneDefaults, mergePlan, diffTotals, campaignsToCsv, MULTI_PRODUCT, LAYER_NAMES, shortCamp, actualMetrics, buildJourney, buildBehaviour, buildBrief, buildDaily, buildBoss, buildWeekly, rangeDays } from './engine.js?v=20261001181514';
+import { mainFunnelSvg, productFunnelSvg } from './funnel.js?v=20261001181514';
+import { createApi, loadPlugins } from './plugins.js?v=20261001181514';
+import * as ENGINE from './engine.js?v=20261001181514';
 
 // ---------- เก็บข้อมูล ----------
-const KEYS = { settings: 'kad:settings', days: 'kad:days', plan: 'kad:plan', clips: 'kad:clips', manual: 'kad:manual', weeks: 'kad:weeks' };
+const KEYS = { settings: 'kad:settings', days: 'kad:days', plan: 'kad:plan', clips: 'kad:clips', manual: 'kad:manual', weeks: 'kad:weeks', notes: 'kad:notes' };
 function load(key, fallback) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; } }
 function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch (e) { toast('บันทึกไม่ได้: พื้นที่เก็บข้อมูลของเบราว์เซอร์เต็ม ลบวันเก่าในหน้าโหลดไฟล์'); return false; } }
 
@@ -16,6 +16,7 @@ const state = {
   clips: load(KEYS.clips, []),
   manual: load(KEYS.manual, { products: {}, layers: {} }),
   weeks: load(KEYS.weeks, {}), week: null,
+  notes: load(KEYS.notes, {}),
   date: null, pending: null, advice: null,
 };
 // รวม rules ที่อาจเพิ่มใหม่ในเวอร์ชันหลัง
@@ -36,7 +37,7 @@ const AB = createApi({
   setOverride: (date, name, patch) => { const D = state.days[date]; if (!D || !D.campaigns.some(c => c.name === name)) return false; D.overrides[name] = { ...(D.overrides[name] || {}), ...patch }; save(KEYS.days, state.days); renderDecisions(); return true; },
   setActual: (date, actual) => { const D = state.days[date]; if (!D) return false; D.actual = actual && actual.rev > 0 ? { ...actual, updatedAt: new Date().toISOString() } : null; save(KEYS.days, state.days); renderOverview(); return true; },
   addPlanItem: (layer, key, item) => { const layers = currentPlan(), p = layers.find(x => x.layer === layer); if (!p || !p[key]) return false; p[key].push({ ...item, source: 'team' }); savePlanFrom(layers); renderPlan(); renderFunnel(); return true; },
-  renderPngBlob: async (date) => { const D = (date ? state.days[date] : day()); if (!D) throw new Error('ยังไม่ได้โหลดไฟล์'); const m = await import('./sheet.js?v=20260922000101'); return (await m.renderPngBlob(D, currentPlan(), $('#sheetHost'))).blob; },
+  renderPngBlob: async (date) => { const D = (date ? state.days[date] : day()); if (!D) throw new Error('ยังไม่ได้โหลดไฟล์'); const m = await import('./sheet.js?v=20261001181514'); return (await m.renderPngBlob(D, currentPlan(), $('#sheetHost'))).blob; },
   onRegistryChange: () => { if (typeof renderPluginUi === 'function') renderPluginUi(); },
 });
 window.AdBoard = AB;
@@ -83,12 +84,14 @@ function showView(v) {
   if (!document.querySelector(`.view[data-view="${CSS.escape(v)}"]`)) v = 'load';
   document.querySelectorAll('.view').forEach(s => s.classList.toggle('hidden', s.dataset.view !== v));
   document.querySelectorAll('.opnav-item').forEach(b => b.classList.toggle('on', b.dataset.view === v));
+  if (['journey', 'behaviour'].includes(v)) { const c = document.querySelector('.opnav-item[data-view="brief"]'); if (c) c.classList.add('on'); }
   const pv = AB.registry.views.find(x => 'p:' + x.id === v);
   if (pv) { const el = document.querySelector(`.view[data-view="${CSS.escape(v)}"] .pv-body`); try { pv.render(el, AB); } catch (e) { el.innerHTML = `<div class="warnbox">ปลั๊กอินแสดงผลไม่ได้: ${esc(e.message)}</div>`; } }
   AB.emit('view:shown', { view: v });
   try { history.replaceState(null, '', '#/' + v); } catch {}
 }
 $('#nav').addEventListener('click', e => { const b = e.target.closest('[data-view]'); if (b) showView(b.dataset.view); });
+document.addEventListener('click', e => { const b = e.target.closest('.subtabs [data-view]'); if (b) showView(b.dataset.view); });
 $('#daySelect').addEventListener('change', e => { state.date = e.target.value || null; renderAll(); AB.emit('day:changed', { date: state.date }); });
 
 // ---------- โหลดไฟล์ ----------
@@ -164,13 +167,14 @@ function commitPending() {
   state.date = A.date; state.pending = null;
   const q = new URLSearchParams(location.search); // โหมดพัฒนา
   if (q.get('sample')) adviceModule().then(m => { if (m) { rec.advice = m.sampleAdvice(rec, currentPlan()); save(KEYS.days, state.days); renderAdvice(); renderOverview(); } });
-  if (q.get('sheet')) import('./sheet.js?v=20260922000101').then(m => { $('#sheetHost').innerHTML = m.sheetHtml(rec, currentPlan()); }).catch(e => { $('#exportMsg').textContent = e.message; });
+  if (q.get('sheet')) import('./sheet.js?v=20261001181514').then(m => { $('#sheetHost').innerHTML = m.sheetHtml(rec, currentPlan()); }).catch(e => { $('#exportMsg').textContent = e.message; });
   if (q.get('actual') && (!q.get('actualfor') || q.get('actualfor') === A.date)) { const [r, o] = q.get('actual').split(',').map(Number); const bpd = {}; for (const kv of (q.get('actualp') || '').split(',').filter(Boolean)) { const [n, v] = kv.split(':'); bpd[n] = { rev: Number(v) }; } rec.actual = { rev: r, orders: o || null, note: 'dev', byProduct: bpd, updatedAt: new Date().toISOString() }; save(KEYS.days, state.days); }   // โหมดพัฒนา: ใส่ยอดจริงให้วันล่าสุด
   for (const kv of (q.get('actuals') || '').split(',').filter(Boolean)) { const [d, v] = kv.split(':'); if (d === A.date) { rec.actual = { rev: Number(v), orders: null, note: 'dev', byProduct: {}, updatedAt: new Date().toISOString() }; save(KEYS.days, state.days); } }
+  if (q.get('notes') && (!q.get('actualfor') || q.get('actualfor') === A.date)) { const o = { updatedAt: new Date().toISOString() }; for (const kv of q.get('notes').split('|')) { const i = kv.indexOf(':'); if (i > 0) o[kv.slice(0, i)] = kv.slice(i + 1).replace(/;/g, '\n'); } state.notes[A.date] = o; save(KEYS.notes, state.notes); }
   if (q.get('vpng')) viewPngBlob('#' + q.get('vpng'), q.get('vpng'), 'test').then(r => { $('#' + q.get('vpng') + 'Msg').textContent = 'vpng ok ' + Math.round(r.blob.size / 1024) + 'KB'; }).catch(e => { $('#' + q.get('vpng') + 'Msg').textContent = 'vpng fail ' + e.message; });
   if (q.get('bpng')) briefPngBlob().then(r => { $('#briefMsg').textContent = 'bpng ok ' + Math.round(r.blob.size / 1024) + 'KB'; }).catch(e => { $('#briefMsg').textContent = 'bpng fail ' + e.message; });
   if (q.get('jpng')) journeyPngBlob('').then(r => { $('#journeyMsg').textContent = 'jpng ok ' + Math.round(r.blob.size / 1024) + 'KB'; }).catch(e => { $('#journeyMsg').textContent = 'jpng fail ' + e.message; });
-  if (q.get('png')) import('./sheet.js?v=20260922000101').then(m => m.exportPng(rec, currentPlan(), $('#sheetHost'), true)).then(r => { $('#exportMsg').textContent = 'png ok ' + r; }).catch(e => { $('#exportMsg').textContent = 'png fail ' + e.message; });
+  if (q.get('png')) import('./sheet.js?v=20261001181514').then(m => m.exportPng(rec, currentPlan(), $('#sheetHost'), true)).then(r => { $('#exportMsg').textContent = 'png ok ' + r; }).catch(e => { $('#exportMsg').textContent = 'png fail ' + e.message; });
   toast(`วิเคราะห์ ${thDate(A.date)} เสร็จ`);
   renderAll(); showView(autoView || 'daily');
   AB.emit('day:loaded', { date: A.date, fileName });
@@ -330,6 +334,34 @@ function renderBehaviour() {
     <p class="note">วิธีตั้งกลุ่มเป้าหมายและแคมเปญตามตารางนี้ทีละขั้น อยู่ในไฟล์ คู่มือตั้งกรวย-4-กลุ่ม.md ในโฟลเดอร์งาน</p>`;
 }
 
+// ---------- เรื่องขึ้นประชุม (พนักงานพิมพ์เอง ติดไปในรายงาน) ----------
+const NOTE_FIELDS = [['found', 'เจออะไร', 'ปัญหาหรือสิ่งผิดปกติที่เห็นวันนี้ เช่น งบ D5 หมดตั้งแต่บ่าย 2 · แอดมินตอบช้าช่วงเย็น · Meta ปฏิเสธคลิปอินฟู 33'], ['need', 'ต้องการอะไร', 'สิ่งที่ขอจากหัวหน้าหรือทีมอื่น เช่น ขอคลิปโปร D5 สำหรับคนทัก · ขอเพิ่มงบ D1 เลิกย้ายเป็น 1,200 · ขอให้แอดมินเข้าเวรหลัง 2 ทุ่ม'], ['done', 'ตัดสินใจไปแล้ว', 'สิ่งที่ทำไปแล้ววันนี้ เช่น ปิดอินฟู 33, 34 · ลดเจ๊ศรี ABO เหลือ 500 · เปิดชุดคนทัก 7 วัน MINI']];
+const notesOf = d => (d && state.notes[d]) || {};
+const notesHas = n => NOTE_FIELDS.some(([k]) => (n[k] || '').trim());
+const noteLines = v => String(v || '').split(/\n|·/).map(x => x.trim()).filter(Boolean);
+function renderNotesBox() {
+  const D = day(), el = $('#notesBox'); if (!D) { el.innerHTML = ''; return; }
+  const n = notesOf(D.date);
+  el.innerHTML = `<div class="notebox"><div class="actbox-h"><b>เรื่องขึ้นประชุม · ${thDate(D.date)}</b><span class="small muted">${n.updatedAt ? 'บันทึกล่าสุด ' + new Date(n.updatedAt).toLocaleString('th-TH') : 'พิมพ์สั้น ๆ ทีละบรรทัด จะติดไปในรูปรายงานรายวัน สรุปส่งหัวหน้า และรวมในรายสัปดาห์'}</span></div>
+    <div class="notegrid">${NOTE_FIELDS.map(([k, t, ph]) => `<label><b>${t}</b><textarea data-note="${k}" rows="3" placeholder="${esc(ph)}">${esc(n[k] || '')}</textarea></label>`).join('')}</div>
+    <div class="row-btns"><button class="btn" id="btnNoteSave">บันทึกเรื่องขึ้นประชุม</button><span class="small muted" id="noteMsg"></span></div></div>`;
+  $('#btnNoteSave').addEventListener('click', () => { const o = { updatedAt: new Date().toISOString() }; el.querySelectorAll('[data-note]').forEach(t => { o[t.dataset.note] = t.value.trim(); });
+    if (notesHas(o)) state.notes[D.date] = o; else delete state.notes[D.date]; save(KEYS.notes, state.notes); renderDaily(); renderBoss(); renderWeekly(); renderNotesBox(); toast('บันทึกเรื่องขึ้นประชุมแล้ว'); AB.emit('notes:saved', { date: D.date, notes: state.notes[D.date] || null }); });
+}
+/** HTML แสดงเรื่องขึ้นประชุมในรายงาน (short = ของหัวหน้า) */
+function notesHtml(n, title = 'เรื่องขึ้นประชุม จากทีมแอด', short = false) {
+  if (!notesHas(n)) return '';
+  const col = (k, t, cls) => { const L = noteLines(n[k]); return L.length ? `<div class="nt-col ${cls}"><b>${t}</b><ul>${L.slice(0, short ? 3 : 8).map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''; };
+  return `<h3 class="sec-h">${title}</h3><div class="nt-grid">${col('found', 'เจออะไร', 'found')}${col('need', 'ต้องการอะไร', 'need')}${col('done', 'ตัดสินใจไปแล้ว', 'done')}</div>`;
+}
+/** รวมเรื่องขึ้นประชุมของทุกวันในช่วง (รายสัปดาห์) */
+function notesRangeHtml(start, end) {
+  const days = []; for (let t = new Date(start + 'T00:00:00Z'), e = new Date(end + 'T00:00:00Z'); t <= e; t.setUTCDate(t.getUTCDate() + 1)) { const d = t.toISOString().slice(0, 10); if (notesHas(notesOf(d))) days.push(d); }
+  if (!days.length) return '';
+  const col = (k, t, cls) => { const items = days.flatMap(d => noteLines(notesOf(d)[k]).map(x => ({ d, x }))); return items.length ? `<div class="nt-col ${cls}"><b>${t}</b><ul>${items.map(i => `<li><small>${+i.d.slice(8, 10)}/${+i.d.slice(5, 7)}</small> ${esc(i.x)}</li>`).join('')}</ul></div>` : ''; };
+  return `<h3 class="sec-h">เรื่องขึ้นประชุม จากทีมแอดทั้งสัปดาห์ <span class="small muted">${days.length} วันที่มีบันทึก</span></h3><div class="nt-grid">${col('found', 'เจออะไร', 'found')}${col('need', 'ต้องการอะไร', 'need')}${col('done', 'ตัดสินใจไปแล้ว', 'done')}</div>`;
+}
+
 // ---------- รายงานรายวัน + สรุปเจ้านาย ----------
 function ensureDaily(D) { if (!D.daily && D.campaigns) { D.daily = buildDaily(D.campaigns, [], D.totals, D.date); save(KEYS.days, state.days); } return D.daily; }
 function actualBoxHtml(D, where) {
@@ -395,7 +427,9 @@ function renderDaily() {
     <h3 class="sec-h">3. แคมเปญวันนี้ แยกตามไฟ <span class="small muted">หาคนใหม่เรียงจากทักถูกไปแพง${hasBud ? ' · ตัวแดงในช่อง "ใช้งบ" = งบหมด' : ''}</span></h3>
     <div class="dl-grid">${block('green', 'หาคนใหม่ · ห้ามปิด', `มี ${Y.gnobuy} ตัวที่ทักถูกแต่ยังไม่มียอดที่มีมูลค่า ตัวพวกนี้คือตัวที่มักโดนปิดผิด`)}${block('old', 'คนที่รู้จักเราแล้ว', 'ลูกค้าเก่า + คนดูคลิป + คนเคยทัก ดูยอดอย่างเดียว เรียงจาก ROAS สูงไปต่ำ', true)}${block('yellow', 'หาคนใหม่ · คงไว้ ดูอีกวัน', 'ห้ามเพิ่มงบ')}${block('red', 'หาคนใหม่ · ลดงบครึ่ง / ปิด', `ทักแพงหรือไม่มีคนทัก และใช้เงินเกิน ${R.minSpend} บาทแล้ว`)}</div>
     <h3 class="sec-h">4. ทำพรุ่งนี้ 3 ข้อ</h3>
-    <div class="brief-3">${Y.todo.map(t => `<div class="brief-box"><h4>${esc(t.t)}</h4>${esc(t.d)}</div>`).join('')}</div>`;
+    <div class="brief-3">${Y.todo.map(t => `<div class="brief-box"><h4>${esc(t.t)}</h4>${esc(t.d)}</div>`).join('')}</div>
+    ${notesHtml(notesOf(D.date), '5. เรื่องขึ้นประชุม จากทีมแอด')}`;
+  renderNotesBox();
 }
 function renderBoss() {
   const D = day(); if (!D) { $('#boss').textContent = 'ยังไม่ได้โหลดไฟล์'; return; }
@@ -423,6 +457,7 @@ function renderBoss() {
     <h3 class="sec-h">ค่าแอดแยกสินค้า <span class="small muted">เขียว = ไม่เกิน ${T}%</span></h3><div class="ld-chips">${chips}</div>
     ${main ? `<h3 class="sec-h">ปัญหาหลักวันนี้</h3><div class="ld-prob"><b>${esc(main.title)}</b><p>${esc(main.detail)}</p><p class="fix"><span>วิธีแก้</span> ${esc(main.fix)}</p></div>` : ''}
     <h3 class="sec-h">ทีมจะทำพรุ่งนี้</h3><ol class="ld-acts">${acts.slice(0, 4).map(a => `<li>${esc(a)}</li>`).join('')}</ol>
+    ${notesHtml(notesOf(D.date), 'จากทีมแอด: เจออะไร ต้องการอะไร', true)}
     ${B.expect.move ? `<div class="ld-ask"><b>ขออนุมัติ:</b> ย้ายงบวันละ ${n0(B.expect.move)} บาท จากตัวที่ไม่คืนทุน ไปตัวที่ขายได้ งบรวมเท่าเดิม · คาดค่าแอดลงจาก ${n0(B.expect.now)}% เหลือราว ${n0(B.expect.next)}% ใน 3-5 วัน</div>` : ''}
     </div>`;
 }
@@ -554,6 +589,7 @@ function renderWeekly() {
     <div class="tbl-wrap"><table class="tbl wk-tbl"><thead><tr><th>กลุ่มที่ยิงหา</th><th class="r">ใช้ทั้งสัปดาห์</th><th class="r">วันละ</th><th class="r">สัดส่วนจริง</th><th class="r">แผน</th><th class="r">ต่างจากแผน</th><th class="r">ลงทุน 100 ได้กลับ</th><th>สัปดาห์หน้าควรเป็นวันละ</th></tr></thead><tbody>${Y.layers.map(l => `<tr><td><span class="ltag l${l.layer}">${l.layer}</span> <b>${l.name}</b></td><td class="r num">${n0(l.spend)}</td><td class="r num">${n0(l.perDay)}</td><td class="r num b">${n0(l.share)}%</td><td class="r num">${l.plan}%</td><td class="r num ${Math.abs(l.gap) >= 10 ? 'bad' : ''}">${l.gap > 0 ? '+' : ''}${n0(l.gap)}</td><td class="r num b ${l.spend ? (l.ret >= Y.need ? 'good' : 'bad') : ''}">${l.spend ? n0(l.ret) : '-'}</td><td><b>${n0(Math.round(l.planPerDay / 100) * 100)}</b> <span class="muted small">${l.planPerDay > l.perDay * 1.15 ? '▲ เพิ่ม' : l.planPerDay < l.perDay * 0.85 ? '▼ ลด' : 'คงเดิม'}</span></td></tr>`).join('')}</tbody></table></div>
     <h3 class="sec-h">3. ลงทุนค่าแอด 100 บาท ได้ยอดขายกลับมากี่บาท (ทั้งสัปดาห์) <span class="small muted">เส้นประ = ${Y.need} บาท คือจุดที่ผ่านเป้า</span></h3>
     <div class="boss-cols"><div><p class="dl-cap">แยกตามคนที่เรายิงหา</p>${B.groups.map(g => bar(g.label, `ใช้ ${n0(g.spend)} · ${n0(g.share)}% ของงบ`, g.ret)).join('')}</div><div><p class="dl-cap">แยกตามสินค้า</p>${Y.prods.map(g => bar(g.label, `ใช้ ${n0(g.spend)} · ${n0(g.share)}% ของงบ`, g.ret)).join('')}</div></div>
+    ${notesRangeHtml(Y.start, Y.end)}
     <h3 class="sec-h">4. ตัวเด่นและตัวถ่วงของสัปดาห์</h3>
     <div class="brief-3">
       <div class="brief-box wk-good"><h4>ตัวทำเงิน 5 อันดับ</h4>${list(Y.winners, r => `ใช้ ${n0(r.spend)} ได้ ${n0(r.rev)} · ได้กลับ ${n0(r.roas * 100)} ต่อ 100`)}</div>
@@ -781,7 +817,7 @@ $('#advice').addEventListener('input', e => {
   o[parts[parts.length - 1]] = el.textContent; D.advice.editedAt = new Date().toISOString();
   save(KEYS.days, state.days); if (parts[0] === 'headline') renderOverview();
 });
-async function adviceModule() { try { return await import('./advice.js?v=20260922000101'); } catch (e) { toast('ยังไม่มีส่วนคำแนะนำ (advice.js)'); return null; } }
+async function adviceModule() { try { return await import('./advice.js?v=20261001181514'); } catch (e) { toast('ยังไม่มีส่วนคำแนะนำ (advice.js)'); return null; } }
 $('#btnAdvice').addEventListener('click', async () => {
   const D = day(); if (!D) { toast('โหลดไฟล์ก่อน'); return; }
   if (!state.settings.apiKey) { toast('ใส่ API key ในหน้าตั้งค่าก่อน'); showView('settings'); return; }
@@ -806,7 +842,7 @@ $('#btnCsv').addEventListener('click', () => {
 });
 $('#btnPng').addEventListener('click', async () => {
   const D = day(); if (!D) { toast('โหลดไฟล์ก่อน'); return; }
-  let m; try { m = await import('./sheet.js?v=20260922000101'); } catch { $('#exportMsg').textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return; }
+  let m; try { m = await import('./sheet.js?v=20261001181514'); } catch { $('#exportMsg').textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return; }
   $('#exportMsg').textContent = 'กำลังสร้างรูป...'; $('#btnPng').disabled = true;
   try { const name = await m.exportPng(D, currentPlan(), $('#sheetHost')); $('#exportMsg').textContent = `ดาวน์โหลด ${name} แล้ว`; }
   catch (e) { $('#exportMsg').textContent = 'สร้างรูปไม่ได้: ' + e.message; }
@@ -814,7 +850,7 @@ $('#btnPng').addEventListener('click', async () => {
 });
 
 // ---------- Telegram ----------
-async function tgModule() { try { return await import('./telegram.js?v=20260922000101'); } catch { toast('ยังไม่มีส่วน Telegram (telegram.js)'); return null; } }
+async function tgModule() { try { return await import('./telegram.js?v=20261001181514'); } catch { toast('ยังไม่มีส่วน Telegram (telegram.js)'); return null; } }
 function tgReady() { const S = state.settings; return !!(S.tgToken && S.tgChat); }
 function tgCaption(D) {
   const T = D.totals, A = D.advice;
@@ -826,7 +862,7 @@ function tgCaption(D) {
 async function sendToTelegram(D, statusEl) {
   if (!tgReady()) { statusEl.textContent = 'ตั้งค่า bot token และกลุ่มในหน้าตั้งค่าก่อน'; showView('settings'); return false; }
   const tg = await tgModule(); if (!tg) return false;
-  let sheet; try { sheet = await import('./sheet.js?v=20260922000101'); } catch { statusEl.textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return false; }
+  let sheet; try { sheet = await import('./sheet.js?v=20261001181514'); } catch { statusEl.textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return false; }
   statusEl.textContent = 'กำลังสร้างรูปและส่ง...';
   try {
     const { blob, name } = await sheet.renderPngBlob(D, currentPlan(), $('#sheetHost'), 2);
@@ -869,9 +905,11 @@ const RULE_LABELS = {
   l1CpmOk: 'ชั้น 1 ดีเมื่อ CPM ไม่เกิน', l1CpmWarn: 'ชั้น 1 พอใช้เมื่อ CPM ไม่เกิน', l23RoasOk: 'ชั้น 2-3 ดีเมื่อ ROAS ถึง', l23RoasWarn: 'ชั้น 2-3 พอใช้เมื่อ ROAS ถึง', l4RoasOk: 'ชั้น 4 ดีเมื่อ ROAS ถึง', l4RoasWarn: 'ชั้น 4 พอใช้เมื่อ ROAS ถึง',
   openerReach: 'คลิปเปิดที่ควรสร้างกลุ่มคนดู เมื่อเข้าถึงเกิน (คน)', l3V50pct: 'ชั้น 3 ไม่ดูคลิป เมื่อดูครึ่งคลิปต่ำกว่า (%)', dupAdsetCampaigns: 'เตือนรายชื่อซ้ำเมื่อใช้ตั้งแต่ (แคมเปญ)',
 };
+function applyExtraMenus() { const on = !!state.settings.extraMenus; document.querySelectorAll('.opnav-item.extra').forEach(b => b.classList.toggle('hidden', !on)); }
 function renderSettings() {
   const S = state.settings;
   $('#settings').innerHTML = `
+    <div class="card"><h3>เมนูเพิ่มเติม (ไม่ได้ใช้ทุกวัน)</h3><p class="small muted">ภาพรวม · กรวย · คำตัดสิน · แผนคอนเทนต์ · คำแนะนำจาก Claude · ส่งออกแบบเก่า ถูกซ่อนไว้เพื่อให้เมนูสั้น ข้อมูลยังอยู่ครบ</p><label class="chk"><input type="checkbox" id="setExtra"${S.extraMenus ? ' checked' : ''}> แสดงเมนูเพิ่มเติม</label></div>
     <div class="card"><h3>ชื่อแอปและโลโก้ (แถบหัว)</h3>
       <div class="row-btns" style="align-items:flex-end;gap:16px">
         <div class="logo-preview" id="logoPreview">${S.logo ? `<img src="${esc(S.logo)}" alt="">` : `<img src="logo.png" alt="" onerror="this.replaceWith(Object.assign(document.createElement('b'),{textContent:'${esc((S.appName || 'BLISSTECH AdBoard').charAt(0))}',className:'disp'}))">`}</div>
@@ -923,6 +961,7 @@ function renderSettings() {
       state.settings = S2; save(KEYS.settings, S2); toast('บันทึกการตั้งค่าแล้ว'); applyBrand(); renderSettings();
     } catch (e) { toast('รูปแบบ JSON/regex ไม่ถูกต้อง: ' + e.message); }
   });
+  $('#setExtra').addEventListener('change', e => { state.settings.extraMenus = e.target.checked; save(KEYS.settings, state.settings); applyExtraMenus(); toast(e.target.checked ? 'แสดงเมนูเพิ่มเติมแล้ว' : 'ซ่อนเมนูเพิ่มเติมแล้ว'); });
   $('#btnResetRules').addEventListener('click', () => { const d = cloneDefaults(); state.settings = { ...state.settings, rules: d.rules, productPatterns: d.productPatterns, stagePatterns: d.stagePatterns, layerPatterns: d.layerPatterns }; save(KEYS.settings, state.settings); renderSettings(); toast('คืนค่าเริ่มต้นแล้ว (ยังเก็บ API key ไว้)'); });
   $('#btnClearAll').addEventListener('click', () => { if (!confirm('ลบวันที่เก็บไว้ แผน ทะเบียน และการตั้งค่าทั้งหมด (รวม API key) ในเครื่องนี้?')) return; Object.values(KEYS).forEach(k => localStorage.removeItem(k)); location.reload(); });
   $('#setLogo').addEventListener('change', async e => {
@@ -963,6 +1002,7 @@ function renderSettings() {
 }
 
 // ---------- เริ่ม ----------
+applyExtraMenus();
 renderAll();
 // โหลดปลั๊กอินตามรายการในตั้งค่า (dev: ?plugin=<url> เพิ่มชั่วคราว)
 { const list = [...(state.settings.plugins || [])]; const q = new URLSearchParams(location.search).get('plugin'); if (q) list.push({ url: q, enabled: true });

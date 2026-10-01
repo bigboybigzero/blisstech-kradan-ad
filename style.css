@@ -310,3 +310,16 @@ svg .c-ok{fill:#136b4b} svg .c-warn{fill:#9a5f10} svg .c-gap{fill:#a02b21}
 .ld-acts{margin:0;padding-left:22px} .ld-acts li{margin:6px 0;font-size:15px;line-height:1.5}
 .ld-ask{margin-top:14px;background:#14213d;color:#fff;border-radius:12px;padding:12px 18px;font-size:15px;line-height:1.55}
 @media (max-width:800px){.ld-verdict{grid-template-columns:1fr}.ld-kpis{grid-template-columns:1fr 1fr}}
+
+/* เมนูเพิ่มเติม / แท็บย่อย / เรื่องขึ้นประชุม */
+.opnav-item.extra.hidden{display:none}
+.subtabs{display:flex;gap:8px;margin:0 0 14px} .subtabs .btn.ghost{background:#fff;color:#0b2540;border:1.5px solid var(--sky-line);box-shadow:none}
+.chk{display:flex;gap:8px;align-items:center;font-size:14px;margin-top:6px}
+.notebox{background:#fff;border:1.5px solid var(--sky-line);border-radius:14px;padding:12px 16px;margin-bottom:16px}
+.notegrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:8px 0 10px} .notegrid label{display:flex;flex-direction:column;gap:4px;font-size:13px} .notegrid label b{color:#0b2540}
+.notegrid textarea{width:100%;padding:8px 10px;border:1px solid var(--sky-line);border-radius:9px;font:inherit;font-size:13.5px;resize:vertical;min-height:72px}
+.nt-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px} .nt-col{border-radius:12px;padding:10px 14px;border:1.5px solid;background:#fff} .nt-col b{display:block;font-family:"Bai Jamjuree";font-size:14.5px;margin-bottom:4px}
+.nt-col ul{margin:0;padding-left:18px} .nt-col li{margin:3px 0;font-size:13.5px;line-height:1.45} .nt-col li small{color:rgb(var(--muted));font-size:11px;margin-right:4px}
+.nt-col.found{border-color:#f0c2ac;background:#fff8f3} .nt-col.need{border-color:#9ec5e8;background:#f2f8fe} .nt-col.done{border-color:#9bd3b0;background:#f2faf4}
+.boss-sheet.ld .nt-grid{grid-template-columns:1fr 1fr} .boss-sheet.ld .nt-col.done{display:none}
+@media (max-width:900px){.notegrid,.nt-grid{grid-template-columns:1fr}}
