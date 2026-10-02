@@ -53,6 +53,8 @@ export const DEFAULT_SETTINGS = {
     { name: 'D5', regex: 'D5' },
     { name: 'D1', regex: 'D1' },
     { name: 'Premium Drive Set', regex: 'ลดหนัก' },
+    { name: 'PRO100W', regex: '100W' },
+    { name: 'น้ำหอม', regex: 'น้ำหอม' },
   ],
   stagePatterns: [
     { stage: 'TOFU', regex: 'TOFU' },
@@ -131,7 +133,14 @@ export function normalizeRows(rows) {
 
 // ---------- จัดหมวด ----------
 const rx = (p) => new RegExp(p, 'i');
+/** สินค้าจากชื่อแคมเปญ: (1) ส่วนแรกก่อน "/" ถ้ามี "+" = หลายสินค้า (2) จับตาม pattern (3) ส่วนแรกเป็นชื่อสินค้าใหม่อัตโนมัติ (ทีมตั้งชื่อ `สินค้า/ขั้น/...` ตั้งแต่ 10 ก.ย.) */
 export function classifyProduct(camp, settings) {
+  const parts = String(camp || '').split('/'), head = parts[0].trim();
+  if (parts.length >= 3 && /^(TOFU|MOFU|BOFU)$/i.test(parts[1].trim())) {      // ชื่อแบบใหม่ สินค้า/ขั้น/... ดูเฉพาะส่วนแรก
+    if (head.includes('+')) return MULTI_PRODUCT;
+    for (const p of settings.productPatterns) if (rx(p.regex).test(head)) return p.name;
+    return head.length <= 24 ? head : null;                                        // สินค้าใหม่อัตโนมัติ
+  }
   for (const p of settings.productPatterns) if (rx(p.regex).test(camp)) return p.name;
   return null;
 }
@@ -377,7 +386,7 @@ export function buildPlan(ctx, S) {
       P(2).audiencesToBuild.push({ name: `คนดู "${short}" จบ 75% 7-14 วัน`, why: `คลิปเปิดเข้าถึง ${Math.round(c.reach).toLocaleString()} คน ยังไม่มีกลุ่มคนดูจบ`, source: 'auto' });
   }
   for (const pf of productFunnels) {
-    if (!new RegExp(`ENG\\+INBOX.*(${pf.product.split(' ')[0]})`, 'i').test(allAdsetNames)) P(2).audiencesToBuild.push({ name: `ENG+INBOX 14 วัน ${pf.product}`, why: 'ยังไม่มีกลุ่มมีส่วนร่วมแยกสินค้า', source: 'auto' });
+    if (!new RegExp(`ENG\\+INBOX.*(${pf.product.split(' ')[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'i').test(allAdsetNames)) P(2).audiencesToBuild.push({ name: `ENG+INBOX 14 วัน ${pf.product}`, why: 'ยังไม่มีกลุ่มมีส่วนร่วมแยกสินค้า', source: 'auto' });
     if (pf.layers[2].rows === 0 && (pf.layers[0].rows > 0 || pf.layers[1].rows > 0)) P(3).audiencesToBuild.push({ name: `คนทักแชท 7-30 วัน ${pf.product}`, why: 'มีชั้น 1-2 แต่ไม่มีชั้นไล่ปิด', source: 'auto' });
   }
   if (!new RegExp(S.lookalikeRegex, 'i').test(allAdsetNames)) P(1).audiencesToBuild.push({ name: 'Lookalike 1-2% ของคนซื้อ 90 วัน', why: 'ยังไม่มี Lookalike ในบัญชี', source: 'auto' });
