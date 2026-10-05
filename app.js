@@ -1,8 +1,8 @@
 // app.js — หน้าจอกระดานแอด BLISSTECH (สถานะ, localStorage, เรนเดอร์ทุกหน้า)
-import { analyze, cloneDefaults, mergePlan, diffTotals, campaignsToCsv, MULTI_PRODUCT, LAYER_NAMES, shortCamp, actualMetrics, buildJourney, buildBehaviour, buildBrief, buildDaily, buildBoss, buildWeekly, rangeDays } from './engine.js?v=20261002225853';
-import { mainFunnelSvg, productFunnelSvg } from './funnel.js?v=20261002225853';
-import { createApi, loadPlugins } from './plugins.js?v=20261002225853';
-import * as ENGINE from './engine.js?v=20261002225853';
+import { analyze, cloneDefaults, mergePlan, diffTotals, campaignsToCsv, MULTI_PRODUCT, LAYER_NAMES, shortCamp, actualMetrics, buildJourney, buildBehaviour, buildBrief, buildDaily, buildBoss, buildWeekly, rangeDays, buildPath } from './engine.js?v=20261005131024';
+import { mainFunnelSvg, productFunnelSvg } from './funnel.js?v=20261005131024';
+import { createApi, loadPlugins } from './plugins.js?v=20261005131024';
+import * as ENGINE from './engine.js?v=20261005131024';
 
 // ---------- เก็บข้อมูล ----------
 const KEYS = { settings: 'kad:settings', days: 'kad:days', plan: 'kad:plan', clips: 'kad:clips', manual: 'kad:manual', weeks: 'kad:weeks', notes: 'kad:notes' };
@@ -37,7 +37,7 @@ const AB = createApi({
   setOverride: (date, name, patch) => { const D = state.days[date]; if (!D || !D.campaigns.some(c => c.name === name)) return false; D.overrides[name] = { ...(D.overrides[name] || {}), ...patch }; save(KEYS.days, state.days); renderDecisions(); return true; },
   setActual: (date, actual) => { const D = state.days[date]; if (!D) return false; D.actual = actual && actual.rev > 0 ? { ...actual, updatedAt: new Date().toISOString() } : null; save(KEYS.days, state.days); renderOverview(); return true; },
   addPlanItem: (layer, key, item) => { const layers = currentPlan(), p = layers.find(x => x.layer === layer); if (!p || !p[key]) return false; p[key].push({ ...item, source: 'team' }); savePlanFrom(layers); renderPlan(); renderFunnel(); return true; },
-  renderPngBlob: async (date) => { const D = (date ? state.days[date] : day()); if (!D) throw new Error('ยังไม่ได้โหลดไฟล์'); const m = await import('./sheet.js?v=20261002225853'); return (await m.renderPngBlob(D, currentPlan(), $('#sheetHost'))).blob; },
+  renderPngBlob: async (date) => { const D = (date ? state.days[date] : day()); if (!D) throw new Error('ยังไม่ได้โหลดไฟล์'); const m = await import('./sheet.js?v=20261005131024'); return (await m.renderPngBlob(D, currentPlan(), $('#sheetHost'))).blob; },
   onRegistryChange: () => { if (typeof renderPluginUi === 'function') renderPluginUi(); },
 });
 window.AdBoard = AB;
@@ -84,7 +84,7 @@ function showView(v) {
   if (!document.querySelector(`.view[data-view="${CSS.escape(v)}"]`)) v = 'load';
   document.querySelectorAll('.view').forEach(s => s.classList.toggle('hidden', s.dataset.view !== v));
   document.querySelectorAll('.opnav-item').forEach(b => b.classList.toggle('on', b.dataset.view === v));
-  if (['journey', 'behaviour'].includes(v)) { const c = document.querySelector('.opnav-item[data-view="brief"]'); if (c) c.classList.add('on'); }
+  if (['journey', 'behaviour', 'path'].includes(v)) { const c = document.querySelector('.opnav-item[data-view="brief"]'); if (c) c.classList.add('on'); }
   const pv = AB.registry.views.find(x => 'p:' + x.id === v);
   if (pv) { const el = document.querySelector(`.view[data-view="${CSS.escape(v)}"] .pv-body`); try { pv.render(el, AB); } catch (e) { el.innerHTML = `<div class="warnbox">ปลั๊กอินแสดงผลไม่ได้: ${esc(e.message)}</div>`; } }
   AB.emit('view:shown', { view: v });
@@ -156,7 +156,7 @@ function commitPending() {
   const prev = state.days[A.date] || {};
   const rec = {
     fileName, uploadedAt: new Date().toISOString(), date: A.date, dateEnd: A.dateEnd, totals: A.totals, campaigns: A.campaigns, adsets: A.adsets, ads: A.ads, places: A.places,
-    layers: A.layers, products: A.products, productFunnels: A.productFunnels, dupClips: A.dupClips, dupAdsets: A.dupAdsets, unresolved: A.unresolved, planAuto: A.plan, journey: A.journey, behaviour: A.behaviour, brief: A.brief, daily: A.daily, rowCount: A.rowCount,
+    layers: A.layers, products: A.products, productFunnels: A.productFunnels, dupClips: A.dupClips, dupAdsets: A.dupAdsets, unresolved: A.unresolved, planAuto: A.plan, journey: A.journey, behaviour: A.behaviour, brief: A.brief, daily: A.daily, path: A.path, rowCount: A.rowCount,
     overrides: prev.overrides || {}, advice: prev.advice || null,
   };
   state.days[A.date] = rec;
@@ -167,14 +167,14 @@ function commitPending() {
   state.date = A.date; state.pending = null;
   const q = new URLSearchParams(location.search); // โหมดพัฒนา
   if (q.get('sample')) adviceModule().then(m => { if (m) { rec.advice = m.sampleAdvice(rec, currentPlan()); save(KEYS.days, state.days); renderAdvice(); renderOverview(); } });
-  if (q.get('sheet')) import('./sheet.js?v=20261002225853').then(m => { $('#sheetHost').innerHTML = m.sheetHtml(rec, currentPlan()); }).catch(e => { $('#exportMsg').textContent = e.message; });
+  if (q.get('sheet')) import('./sheet.js?v=20261005131024').then(m => { $('#sheetHost').innerHTML = m.sheetHtml(rec, currentPlan()); }).catch(e => { $('#exportMsg').textContent = e.message; });
   if (q.get('actual') && (!q.get('actualfor') || q.get('actualfor') === A.date)) { const [r, o] = q.get('actual').split(',').map(Number); const bpd = {}; for (const kv of (q.get('actualp') || '').split(',').filter(Boolean)) { const [n, v] = kv.split(':'); bpd[n] = { rev: Number(v) }; } rec.actual = { rev: r, orders: o || null, note: 'dev', byProduct: bpd, updatedAt: new Date().toISOString() }; save(KEYS.days, state.days); }   // โหมดพัฒนา: ใส่ยอดจริงให้วันล่าสุด
   for (const kv of (q.get('actuals') || '').split(',').filter(Boolean)) { const [d, v] = kv.split(':'); if (d === A.date) { rec.actual = { rev: Number(v), orders: null, note: 'dev', byProduct: {}, updatedAt: new Date().toISOString() }; save(KEYS.days, state.days); } }
   if (q.get('notes') && (!q.get('actualfor') || q.get('actualfor') === A.date)) { const o = { updatedAt: new Date().toISOString() }; for (const kv of q.get('notes').split('|')) { const i = kv.indexOf(':'); if (i > 0) o[kv.slice(0, i)] = kv.slice(i + 1).replace(/;/g, '\n'); } state.notes[A.date] = o; save(KEYS.notes, state.notes); }
   if (q.get('vpng')) viewPngBlob('#' + q.get('vpng'), q.get('vpng'), 'test').then(r => { $('#' + q.get('vpng') + 'Msg').textContent = 'vpng ok ' + Math.round(r.blob.size / 1024) + 'KB'; }).catch(e => { $('#' + q.get('vpng') + 'Msg').textContent = 'vpng fail ' + e.message; });
   if (q.get('bpng')) briefPngBlob().then(r => { $('#briefMsg').textContent = 'bpng ok ' + Math.round(r.blob.size / 1024) + 'KB'; }).catch(e => { $('#briefMsg').textContent = 'bpng fail ' + e.message; });
   if (q.get('jpng')) journeyPngBlob('').then(r => { $('#journeyMsg').textContent = 'jpng ok ' + Math.round(r.blob.size / 1024) + 'KB'; }).catch(e => { $('#journeyMsg').textContent = 'jpng fail ' + e.message; });
-  if (q.get('png')) import('./sheet.js?v=20261002225853').then(m => m.exportPng(rec, currentPlan(), $('#sheetHost'), true)).then(r => { $('#exportMsg').textContent = 'png ok ' + r; }).catch(e => { $('#exportMsg').textContent = 'png fail ' + e.message; });
+  if (q.get('png')) import('./sheet.js?v=20261005131024').then(m => m.exportPng(rec, currentPlan(), $('#sheetHost'), true)).then(r => { $('#exportMsg').textContent = 'png ok ' + r; }).catch(e => { $('#exportMsg').textContent = 'png fail ' + e.message; });
   toast(`วิเคราะห์ ${thDate(A.date)} เสร็จ`);
   renderAll(); showView(autoView || 'daily');
   AB.emit('day:loaded', { date: A.date, fileName });
@@ -190,7 +190,7 @@ function renderAll() {
   const D = day();
   const rangeTxt = d => d.dateEnd && d.dateEnd !== d.date ? `${thDate(d.date)} ถึง ${thDate(d.dateEnd)}` : thDate(d.date);
   $('#chipDate').textContent = D ? `ข้อมูล ${rangeTxt(D)}` : 'ยังไม่ได้โหลดไฟล์';
-  renderDaily(); renderBoss(); renderWeekly(); renderBrief(); renderOverview(); renderFunnel(); renderJourney(); renderBehaviour(); renderDecisions(); renderPlan(); renderAdvice(); renderSettings();
+  renderDaily(); renderBoss(); renderWeekly(); renderBrief(); renderPath(); renderOverview(); renderFunnel(); renderJourney(); renderBehaviour(); renderDecisions(); renderPlan(); renderAdvice(); renderSettings();
   for (const id of ['ovProducts', 'ovPlaces', 'funnelMain', 'dupClips', 'dupAdsets', 'decisions', 'plan', 'journey', 'behaviour']) $('#' + id).classList.toggle('empty', !D);
   $('#advice').classList.toggle('empty', !(D && D.advice));
   $('#daysList').classList.toggle('empty', !dates.length);
@@ -494,7 +494,7 @@ function commitWeek(A, fileName) {
   const key = weekKey(A.date, A.dateEnd), old = state.weeks[key] || {}, stub = { start: A.date, end: A.dateEnd }, P = prevWeekOf(stub);
   const weekly = buildWeekly(A, A._rows, P ? P.weekly : null, old.actual || null);
   state.weeks[key] = { fileName, uploadedAt: new Date().toISOString(), start: A.date, end: A.dateEnd, weekly, actual: old.actual || null,
-    src: { date: A.date, dateEnd: A.dateEnd, totals: A.totals, campaigns: A.campaigns.map(c => ({ name: c.name, product: c.product, layer: c.layer, spend: c.spend, msgs: c.msgs, noval: c.noval, purch: c.purch, rev: c.rev, bud: c.bud, budget: c.budget })), layers: A.layers.map(l => ({ layer: l.layer, spend: l.spend, rev: l.rev })), products: A.products.map(p => ({ name: p.name, spend: p.spend, rev: p.rev, spendShare: p.spendShare })) },
+    src: { date: A.date, dateEnd: A.dateEnd, totals: A.totals, campaigns: A.campaigns.map(c => ({ name: c.name, product: c.product, layer: c.layer, spend: c.spend, msgs: c.msgs, noval: c.noval, purch: c.purch, rev: c.rev, bud: c.bud, budget: c.budget })), layers: A.layers.map(l => ({ layer: l.layer, spend: l.spend, rev: l.rev })), products: A.products.map(p => ({ name: p.name, spend: p.spend, rev: p.rev, spendShare: p.spendShare, reach: p.reach, imp: p.imp, eng: p.eng, thru: p.thru, vplay: p.vplay, msgs: p.msgs, purch: p.purch, noval: p.noval })), ads: A.ads.map(a => ({ name: a.name, product: a.product, stage: a.stage, spend: a.spend, reach: a.reach, imp: a.imp, eng: a.eng, thru: a.thru, vplay: a.vplay, msgs: a.msgs, purch: a.purch, noval: a.noval, rev: a.rev })) },
     unresolved: A.unresolved.products.length };
   const ks = Object.keys(state.weeks).sort(); while (ks.length > 12) delete state.weeks[ks.shift()];
   save(KEYS.weeks, state.weeks); state.week = key; renderWeekly(); showView('weekly'); toast(`สรุปสัปดาห์ ${thDate(A.date)} - ${thDate(A.dateEnd)} เสร็จ`);
@@ -589,6 +589,7 @@ function renderWeekly() {
     <div class="tbl-wrap"><table class="tbl wk-tbl"><thead><tr><th>กลุ่มที่ยิงหา</th><th class="r">ใช้ทั้งสัปดาห์</th><th class="r">วันละ</th><th class="r">สัดส่วนจริง</th><th class="r">แผน</th><th class="r">ต่างจากแผน</th><th class="r">ลงทุน 100 ได้กลับ</th><th>สัปดาห์หน้าควรเป็นวันละ</th></tr></thead><tbody>${Y.layers.map(l => `<tr><td><span class="ltag l${l.layer}">${l.layer}</span> <b>${l.name}</b></td><td class="r num">${n0(l.spend)}</td><td class="r num">${n0(l.perDay)}</td><td class="r num b">${n0(l.share)}%</td><td class="r num">${l.plan}%</td><td class="r num ${Math.abs(l.gap) >= 10 ? 'bad' : ''}">${l.gap > 0 ? '+' : ''}${n0(l.gap)}</td><td class="r num b ${l.spend ? (l.ret >= Y.need ? 'good' : 'bad') : ''}">${l.spend ? n0(l.ret) : '-'}</td><td><b>${n0(Math.round(l.planPerDay / 100) * 100)}</b> <span class="muted small">${l.planPerDay > l.perDay * 1.15 ? '▲ เพิ่ม' : l.planPerDay < l.perDay * 0.85 ? '▼ ลด' : 'คงเดิม'}</span></td></tr>`).join('')}</tbody></table></div>
     <h3 class="sec-h">3. ลงทุนค่าแอด 100 บาท ได้ยอดขายกลับมากี่บาท (ทั้งสัปดาห์) <span class="small muted">เส้นประ = ${Y.need} บาท คือจุดที่ผ่านเป้า</span></h3>
     <div class="boss-cols"><div><p class="dl-cap">แยกตามคนที่เรายิงหา</p>${B.groups.map(g => bar(g.label, `ใช้ ${n0(g.spend)} · ${n0(g.share)}% ของงบ`, g.ret)).join('')}</div><div><p class="dl-cap">แยกตามสินค้า</p>${Y.prods.map(g => bar(g.label, `ใช้ ${n0(g.spend)} · ${n0(g.share)}% ของงบ`, g.ret)).join('')}</div></div>
+    ${W.src.ads ? `<div class="wk-path">${pathHtml(buildPath(W.src.ads, W.src.products, W.src.totals), 'เส้นทางคนดูทั้งสัปดาห์: ยิงไป → คนเห็น → มีส่วนร่วม → ดูถึง 15 วิ → ทัก → ซื้อ', Y.days)}</div>` : '<p class="note">โหลดไฟล์รายสัปดาห์ใหม่อีกครั้ง จะเห็นส่วน "เส้นทางคนดู" ของสัปดาห์</p>'}
     ${notesRangeHtml(Y.start, Y.end)}
     <h3 class="sec-h">4. ตัวเด่นและตัวถ่วงของสัปดาห์</h3>
     <div class="brief-3">
@@ -604,6 +605,37 @@ function renderWeekly() {
 }
 wireExport('weekly', '#weekly', 'weekly', 'สรุปรายสัปดาห์', () => { const W = curWeek(); return W ? `สรุปรายสัปดาห์ ${thDate(W.start)} - ${thDate(W.end)}: ${W.weekly.headline}\n${W.weekly.boss.lead}` : 'สรุปรายสัปดาห์'; });
 renderWeekly();
+
+// ---------- เส้นทางคนดู ----------
+const clipShortName = n => String(n).replace(/^\d+\.\d+\.\d+\s*/, '').replace(/\(คลิปฟรี\)/, '').trim().slice(0, 40);
+function pathHtml(Pth, title, days = 1) {
+  const R = Pth.rules, T = Pth.total, f0 = v => v === null || v === undefined || isNaN(v) ? '-' : Math.round(v).toLocaleString('en-US'), f1 = v => v === null || v === undefined || isNaN(v) ? '-' : Number(v).toFixed(1);
+  const cl = (v, g, o, lower) => v === null || v === undefined || isNaN(v) ? '' : lower ? (v <= g ? 'good' : v <= o ? 'ok' : 'bad') : (v >= g ? 'good' : v >= o ? 'ok' : 'bad');
+  const step = (lab, v, c, u, sub, k) => `<div class="ps s${k}"><span class="l">${lab}</span><b>${v}</b><i>${c === null || c === undefined ? '&nbsp;' : f1(c) + ' ' + u}</i><small>${sub}</small></div>`;
+  const funnel = `<div class="pfn">${step('ยิงไป', f0(T.spend) + ' บาท', null, '', days > 1 ? 'เฉลี่ยวันละ ' + f0(T.spend / days) : '', 0)}<div class="pa">→</div>${step('คนเห็น', f0(T.reach) + ' คน', T.cpm, 'บาท / 1,000 คน', '', 1)}<div class="pa">→</div>${step('มีส่วนร่วม', f0(T.eng) + ' ครั้ง', T.cpe, 'บาท / ครั้ง', f1(T.engR) + '% ของคนเห็น', 2)}<div class="pa">→</div>${step('ดูถึง 15 วิ', f0(T.thru) + ' ครั้ง', T.cpt, 'บาท / ครั้ง', f1(T.thruR) + '% ของคนเห็น', 3)}<div class="pa">→</div>${step('ทักแชท', f0(T.msgs) + ' คน', T.cpmsg, 'บาท / คน', f1(T.msgR) + '% ของคนเห็น', 4)}<div class="pa">→</div>${step('ซื้อ (Meta)', f0(T.val) + ' ออเดอร์', T.cpp, 'บาท / ออเดอร์', f0(T.m2b) + '% ของคนทัก', 5)}</div>
+    <div class="brief-top blue"><b>จากคน 1,000 คนที่เห็นโฆษณา: มีส่วนร่วม ${f0(T.engR * 10)} คน · ดูถึง 15 วิ ${f0(T.thruR * 10)} คน · ทัก ${f1(T.msgR * 10)} คน · ซื้อ ${(T.buyR * 10).toFixed(2)} คน</b><p>เงินหายมากที่สุดตรงขั้น "เห็นแล้วไม่ทำอะไร" (คนเห็น ${f0(T.reach)} เหลือทัก ${f0(T.msgs)})</p></div>`;
+  const prow = p => `<tr><td><b>${esc(p.name)}</b><small>ใช้ ${f0(p.spend)}</small></td><td class="r num">${f0(p.reach)}</td><td class="r num ${cl(p.cpm, R.cpmGood, R.cpmOk, true)}">${f0(p.cpm)}</td><td class="r num b ${cl(p.engR, R.engGood, R.engOk)}">${f1(p.engR)}%</td><td class="r num ${cl(p.cpe, 0.5, 1, true)}">${f1(p.cpe)}</td><td class="r num b ${p.isStatic ? '' : cl(p.thruR, R.thruGood, R.thruOk)}">${p.isStatic ? 'รูป' : f1(p.thruR) + '%'}</td><td class="r num">${f0(p.msgs)}</td><td class="r num b ${cl(p.msgR, R.msgGood, R.msgOk)}">${f1(p.msgR)}%</td><td class="r num b ${cl(p.cpmsg, R.cpmsgGood, R.cpmsgOk, true)}">${f0(p.cpmsg)}</td><td class="r num">${f0(p.m2b)}%</td><td class="r num">${f0(p.rev)}</td></tr>`;
+  const prodTbl = `<div class="tbl-wrap"><table class="tbl path-tbl"><thead><tr><th>สินค้า</th><th class="r">คนเห็น</th><th class="r">บาท/1,000 เห็น</th><th class="r">มีส่วนร่วม %</th><th class="r">บาท/ครั้ง</th><th class="r">ดูถึง 15 วิ %</th><th class="r">ทัก</th><th class="r">ทัก % ของเห็น</th><th class="r">บาท/คนทัก</th><th class="r">ทัก→ซื้อ</th><th class="r">ยอด Meta</th></tr></thead><tbody>${Pth.prods.map(prow).join('')}</tbody></table></div>
+    <p class="note">เกณฑ์สี: <span class="good">เขียว</span> ดี · <span class="ok">ส้ม</span> พอใช้ · <span class="bad">แดง</span> แย่ — บาท/1,000 เห็น ≤${R.cpmGood} / ≤${R.cpmOk} · มีส่วนร่วม ≥${R.engGood}% / ≥${R.engOk}% · ดูถึง 15 วิ ≥${R.thruGood}% / ≥${R.thruOk}% · ทัก ≥${R.msgGood}% / ≥${R.msgOk}% ของคนเห็น · บาท/คนทัก ≤${R.cpmsgGood} / ≤${R.cpmsgOk} · "มีส่วนร่วม" ของ Meta รวมการดูวิดีโอ 3 วิ จึงสูงเป็นปกติ ใช้เทียบกันเองระหว่างคลิป</p>`;
+  const crow = c => `<tr><td class="name"><b>${esc(clipShortName(c.name))}</b><small>${esc(c.product || '')} · ${esc(c.stage || '')} · ใช้ ${f0(c.spend)}${c.camps > 1 ? ' · ' + c.camps + ' แคมเปญ' : ''}</small></td><td class="r num">${f0(c.reach)}</td><td class="r num ${cl(c.cpm, R.cpmGood, R.cpmOk, true)}">${f0(c.cpm)}</td><td class="r num">${f0(c.eng)}</td><td class="r num b ${cl(c.engR, R.engGood, R.engOk)}">${f1(c.engR)}%</td><td class="r num">${c.isStatic ? 'รูป' : f0(c.thru)}</td><td class="r num b ${c.isStatic ? '' : cl(c.thruR, R.thruGood, R.thruOk)}">${c.isStatic ? '-' : f1(c.thruR) + '%'}</td><td class="r num">${f0(c.msgs)}</td><td class="r num b ${cl(c.msgR, R.msgGood, R.msgOk)}">${f1(c.msgR)}%</td><td class="r num b ${cl(c.cpmsg, R.cpmsgGood, R.cpmsgOk, true)}">${f0(c.cpmsg)}</td><td class="r num">${f0(c.val)}</td><td class="r num">${f0(c.rev)}</td></tr>`;
+  const clipTbl = rows => `<div class="tbl-wrap"><table class="tbl path-tbl"><thead><tr><th>คลิป</th><th class="r">คนเห็น</th><th class="r">บาท/1,000</th><th class="r">มีส่วนร่วม</th><th class="r">% เห็น</th><th class="r">ดู 15 วิ</th><th class="r">% เห็น</th><th class="r">ทัก</th><th class="r">% เห็น</th><th class="r">บาท/ทัก</th><th class="r">ซื้อ</th><th class="r">ยอด Meta</th></tr></thead><tbody>${rows.map(crow).join('') || '<tr><td colspan="12" class="muted">ไม่มีคลิปที่ใช้เกิน ' + R.minSpend + ' บาท</td></tr>'}</tbody></table></div>`;
+  const kinds = `<div class="pkinds">${Pth.kinds.map(k => `<div class="pk pk-${k.cls}"><h4>${esc(k.kind)} <em>${k.n} คลิป · ใช้ ${f0(k.spend)} · ทัก ${f0(k.msgs)}</em></h4><p>${esc(k.why)}</p><ul>${k.clips.map(c => `<li>${esc(clipShortName(c.name))} <small>${esc(c.product || '')} · ทัก ${f1(c.msgR)}% · ${f0(c.cpmsg)} บาท/ทัก</small></li>`).join('')}</ul></div>`).join('')}</div>`;
+  const tell = `<div class="pkinds">${Pth.bestM ? `<div class="pk pk-m"><h4>ทำเพิ่ม: แนว "${esc(clipShortName(Pth.bestM.name))}"</h4><p>คนเห็น 1,000 คน ทัก ${f0(Pth.bestM.msgR * 10)} คน (คนละ ${f0(Pth.bestM.cpmsg)} บาท) สูงสุดของ${days > 1 ? 'สัปดาห์' : 'วัน'} โครงนี้คือตัวเปิดที่ใช้ได้ ทำซ้ำกับสินค้าอื่น</p></div>` : ''}${Pth.bestE ? `<div class="pk pk-w"><h4>เติมคำชวนท้ายคลิป: แนว "${esc(clipShortName(Pth.bestE.name))}"</h4><p>มีส่วนร่วม ${f0(Pth.bestE.engR)}% ของคนเห็น แต่ทักแค่ ${f1(Pth.bestE.msgR)}% คนชอบแต่ไม่รู้จะทำอะไรต่อ เพิ่ม 3 วิท้าย "ราคา + ทักมาได้เลย"</p></div>` : ''}<div class="pk pk-x"><h4>หยุดทำแนวนี้</h4><p>${Pth.stop.length ? esc(Pth.stop.map(c => clipShortName(c.name)).join(' · ')) : 'ไม่มีคลิปที่แพงทุกขั้น'}</p></div></div>`;
+  return `<div class="brief-head"><h3>${esc(title)}</h3></div>${funnel}
+    <h3 class="sec-h">ต่อสินค้า <span class="small muted">รวมจากทุกแคมเปญของสินค้านั้น · สินค้าไหนคนเห็นแล้วสนใจจริง</span></h3>${prodTbl}
+    <h3 class="sec-h">คลิปแบ่งตามสิ่งที่คนทำหลังเห็น <span class="small muted">คลิปชื่อเดียวกันรวมทุกแคมเปญ · เฉพาะที่ใช้เกิน ${R.minSpend} บาท</span></h3>${kinds}
+    <h3 class="sec-h">คลิปที่พาคนไปถึง "ทัก" ได้ดีที่สุด <span class="small muted">เรียงตามทัก % ของคนเห็น</span></h3>${clipTbl(Pth.byMsg)}
+    <h3 class="sec-h">คลิปที่คนเห็นแล้วมีส่วนร่วมมากที่สุด <span class="small muted">ใช้สร้างกลุ่มคนดูไว้ยิงซ้ำ</span></h3>${clipTbl(Pth.byEng)}
+    <h3 class="sec-h">สิ่งที่บอกทีมคอนเทนต์</h3>${tell}`;
+}
+function renderPath() {
+  const D = day(), el = $('#path'); if (!D) { el.classList.add('empty'); el.textContent = 'ยังไม่ได้โหลดไฟล์'; return; }
+  if (!D.path && D.ads) { D.path = buildPath(D.ads, D.products, D.totals); save(KEYS.days, state.days); }
+  if (!D.path) { el.textContent = 'ไม่มีข้อมูล'; return; }
+  el.classList.remove('empty'); const T = D.path.total;
+  el.innerHTML = pathHtml(D.path, `${thDate(D.date)} · ยิงไป ${Math.round(T.spend).toLocaleString('en-US')} บาท เห็น ${Math.round(T.reach).toLocaleString('en-US')} คน มีส่วนร่วม ${Math.round(T.eng).toLocaleString('en-US')} ครั้ง ทัก ${Math.round(T.msgs).toLocaleString('en-US')} คน`);
+}
+wireExport('path', '#path', 'path', 'เส้นทางคนดู', D => { const T = D.path ? D.path.total : null; return `เส้นทางคนดู ${thDate(D.date)}` + (T ? `\nยิง ${Math.round(T.spend).toLocaleString('en-US')} · เห็น ${Math.round(T.reach).toLocaleString('en-US')} คน (${T.cpm === null ? '-' : Math.round(T.cpm)} บาท/1,000) · มีส่วนร่วม ${Math.round(T.eng).toLocaleString('en-US')} · ทัก ${Math.round(T.msgs).toLocaleString('en-US')} คน (${T.cpmsg === null ? '-' : Math.round(T.cpmsg)} บาท/คน)` : ''); });
 
 // ---------- สรุปวันนี้ (ภาษาง่าย) ----------
 function renderBrief() {
@@ -817,7 +849,7 @@ $('#advice').addEventListener('input', e => {
   o[parts[parts.length - 1]] = el.textContent; D.advice.editedAt = new Date().toISOString();
   save(KEYS.days, state.days); if (parts[0] === 'headline') renderOverview();
 });
-async function adviceModule() { try { return await import('./advice.js?v=20261002225853'); } catch (e) { toast('ยังไม่มีส่วนคำแนะนำ (advice.js)'); return null; } }
+async function adviceModule() { try { return await import('./advice.js?v=20261005131024'); } catch (e) { toast('ยังไม่มีส่วนคำแนะนำ (advice.js)'); return null; } }
 $('#btnAdvice').addEventListener('click', async () => {
   const D = day(); if (!D) { toast('โหลดไฟล์ก่อน'); return; }
   if (!state.settings.apiKey) { toast('ใส่ API key ในหน้าตั้งค่าก่อน'); showView('settings'); return; }
@@ -842,7 +874,7 @@ $('#btnCsv').addEventListener('click', () => {
 });
 $('#btnPng').addEventListener('click', async () => {
   const D = day(); if (!D) { toast('โหลดไฟล์ก่อน'); return; }
-  let m; try { m = await import('./sheet.js?v=20261002225853'); } catch { $('#exportMsg').textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return; }
+  let m; try { m = await import('./sheet.js?v=20261005131024'); } catch { $('#exportMsg').textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return; }
   $('#exportMsg').textContent = 'กำลังสร้างรูป...'; $('#btnPng').disabled = true;
   try { const name = await m.exportPng(D, currentPlan(), $('#sheetHost')); $('#exportMsg').textContent = `ดาวน์โหลด ${name} แล้ว`; }
   catch (e) { $('#exportMsg').textContent = 'สร้างรูปไม่ได้: ' + e.message; }
@@ -850,7 +882,7 @@ $('#btnPng').addEventListener('click', async () => {
 });
 
 // ---------- Telegram ----------
-async function tgModule() { try { return await import('./telegram.js?v=20261002225853'); } catch { toast('ยังไม่มีส่วน Telegram (telegram.js)'); return null; } }
+async function tgModule() { try { return await import('./telegram.js?v=20261005131024'); } catch { toast('ยังไม่มีส่วน Telegram (telegram.js)'); return null; } }
 function tgReady() { const S = state.settings; return !!(S.tgToken && S.tgChat); }
 function tgCaption(D) {
   const T = D.totals, A = D.advice;
@@ -862,7 +894,7 @@ function tgCaption(D) {
 async function sendToTelegram(D, statusEl) {
   if (!tgReady()) { statusEl.textContent = 'ตั้งค่า bot token และกลุ่มในหน้าตั้งค่าก่อน'; showView('settings'); return false; }
   const tg = await tgModule(); if (!tg) return false;
-  let sheet; try { sheet = await import('./sheet.js?v=20261002225853'); } catch { statusEl.textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return false; }
+  let sheet; try { sheet = await import('./sheet.js?v=20261005131024'); } catch { statusEl.textContent = 'ยังไม่มีส่วนสร้างรูป (sheet.js)'; return false; }
   statusEl.textContent = 'กำลังสร้างรูปและส่ง...';
   try {
     const { blob, name } = await sheet.renderPngBlob(D, currentPlan(), $('#sheetHost'), 2);

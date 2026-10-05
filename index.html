@@ -23,7 +23,7 @@
     <button class="opnav-item" data-view="daily"><span><b>รายงานรายวัน</b><small>ตัวเลข งบ ไฟคุมแอด · ส่งกลุ่ม</small></span></button>
     <button class="opnav-item" data-view="boss"><span><b>สรุปส่งหัวหน้า</b><small>สั้น อ่านจบใน 30 วินาที</small></span></button>
     <button class="opnav-item" data-view="weekly"><span><b>สรุปรายสัปดาห์</b><small>ไฟล์ 7 วัน · ส่งทุกวันจันทร์</small></span></button>
-    <button class="opnav-item" data-view="brief"><span><b>คอนเทนต์</b><small>คลิปไหนต้องแก้ · ผัง · พฤติกรรมคนดู</small></span></button>
+    <button class="opnav-item" data-view="brief"><span><b>คอนเทนต์</b><small>คลิปไหนต้องแก้ · เส้นทางคนดู · ผัง</small></span></button>
     <button class="opnav-item extra hidden" data-view="overview"><span><b>ภาพรวม</b><small>KPI เทียบวันก่อน</small></span></button>
     <button class="opnav-item extra hidden" data-view="funnel"><span><b>กรวย</b><small>4 ชั้น + แยกสินค้า</small></span></button>
     <button class="opnav-item extra hidden" data-view="journey"><span><b>ผังคอนเทนต์</b><small>ใครเห็นคลิปอะไร ต่อด้วยอะไร</small></span></button>
@@ -73,7 +73,7 @@
 
     <section data-view="brief" class="view hidden">
       <h2 class="sec-h">คอนเทนต์: คลิปไหนต้องแก้ตรงไหน (อ่านทุกแคมเปญเป็นคน 1,000 คน)</h2>
-      <div class="subtabs"><button class="btn on" data-view="brief">คลิปไหนต้องแก้</button><button class="btn ghost" data-view="journey">ผังคอนเทนต์</button><button class="btn ghost" data-view="behaviour">พฤติกรรมคนดู</button></div>
+      <div class="subtabs"><button class="btn on" data-view="brief">คลิปไหนต้องแก้</button><button class="btn ghost" data-view="journey">ผังคอนเทนต์</button><button class="btn ghost" data-view="behaviour">พฤติกรรมคนดู</button><button class="btn ghost" data-view="path">เส้นทางคนดู</button></div>
       <div class="row-btns"><button class="btn" id="btnBriefPng">ดาวน์โหลดรูป</button><button class="btn" id="btnBriefTg">ส่งเข้า Telegram</button><span class="small muted" id="briefMsg"></span></div>
       <div id="brief" class="empty">ยังไม่ได้โหลดไฟล์</div>
     </section>
@@ -104,7 +104,7 @@
 
     <section data-view="journey" class="view hidden">
       <h2 class="sec-h">ผังคอนเทนต์แยกสินค้า: ใครเห็นคลิปอะไร แล้วต้องเห็นอะไรต่อ</h2>
-      <div class="subtabs"><button class="btn ghost" data-view="brief">คลิปไหนต้องแก้</button><button class="btn on" data-view="journey">ผังคอนเทนต์</button><button class="btn ghost" data-view="behaviour">พฤติกรรมคนดู</button></div>
+      <div class="subtabs"><button class="btn ghost" data-view="brief">คลิปไหนต้องแก้</button><button class="btn on" data-view="journey">ผังคอนเทนต์</button><button class="btn ghost" data-view="behaviour">พฤติกรรมคนดู</button><button class="btn ghost" data-view="path">เส้นทางคนดู</button></div>
       <div class="hint">อ่านซ้ายไปขวา: คนใหม่เห็น <b>คลิปเปิด</b> → คนที่ดูจบ/ทักแชทแต่ยังไม่ซื้อ เห็น <b>คลิปคลายกังวล</b> → ยังไม่ซื้ออีก เห็น <b>คลิปราคาพิเศษ</b> → ซื้อแล้วเข้ากลุ่ม <b>ลูกค้าเก่า</b> แต่ละขั้นบอกกลุ่มที่เห็น คลิปที่ยิงอยู่จริง คลิปที่อยู่ผิดขั้น และแนวคลิปที่ควรทำต่อ</div>
       <div class="row-btns" id="journeyTools">
         <label class="small muted">สินค้า <select id="journeyPick"><option value="">ทั้งหมด</option></select></label>
@@ -114,9 +114,15 @@
       </div>
       <div id="journey" class="empty">ยังไม่ได้โหลดไฟล์</div>
     </section>
+    <section data-view="path" class="view hidden">
+      <h2 class="sec-h">เส้นทางคนดู: ยิงไปเท่าไร คนเห็น มีส่วนร่วม ทัก เท่าไร ต้นทุนเท่าไร</h2>
+      <div class="subtabs"><button class="btn ghost" data-view="brief">คลิปไหนต้องแก้</button><button class="btn ghost" data-view="journey">ผังคอนเทนต์</button><button class="btn ghost" data-view="behaviour">พฤติกรรมคนดู</button><button class="btn on" data-view="path">เส้นทางคนดู</button></div>
+      <div class="row-btns"><button class="btn" id="btnPathPng">ดาวน์โหลดรูป</button><button class="btn" id="btnPathTg">ส่งเข้า Telegram</button><span class="small muted" id="pathMsg"></span></div>
+      <div id="path" class="empty">ยังไม่ได้โหลดไฟล์</div>
+    </section>
     <section data-view="behaviour" class="view hidden">
       <h2 class="sec-h">พฤติกรรมคนดู: คลิปไหนดึงคนดู คลิปไหนทำให้ทัก กลุ่มไหนดูวิดีโอ</h2>
-      <div class="subtabs"><button class="btn ghost" data-view="brief">คลิปไหนต้องแก้</button><button class="btn ghost" data-view="journey">ผังคอนเทนต์</button><button class="btn on" data-view="behaviour">พฤติกรรมคนดู</button></div>
+      <div class="subtabs"><button class="btn ghost" data-view="brief">คลิปไหนต้องแก้</button><button class="btn ghost" data-view="journey">ผังคอนเทนต์</button><button class="btn on" data-view="behaviour">พฤติกรรมคนดู</button><button class="btn ghost" data-view="path">เส้นทางคนดู</button></div>
       <div class="hint">ใช้เมื่อยอดซื้อจาก Meta เชื่อไม่ได้เต็มที่ วัดคลิปจาก <b>ThruPlay</b> (ดูถึง 15 วิหรือจบ ต่อครั้งที่เล่น) <b>เวลาดูเฉลี่ย</b> <b>CTR</b> <b>แชทที่เริ่ม</b> (= ใช้จ่าย ÷ ต้นทุนต่อแชท) และ <b>ต่อ ThruPlay</b> ป้าย: <span class="btag ดู">ดู</span> ThruPlay ≥ 8% หรือดู ≥ 6 วิ · <span class="btag ทัก">ทัก</span> แชทละ ≤ 20 บาท · <span class="btag ซื้อ">ซื้อ</span> ROAS ≥ 4</div>
       <div id="behaviour" class="empty">ยังไม่ได้โหลดไฟล์</div>
     </section>
@@ -167,6 +173,6 @@
 window.addEventListener('unhandledrejection', e => { document.getElementById('errlog').textContent += 'rejection: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason) + '\n'; });</script>
 
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script type="module" src="app.js?v=20261002225853"></script>
+<script type="module" src="app.js?v=20261005131024"></script>
 </body>
 </html>

@@ -323,3 +323,12 @@ svg .c-ok{fill:#136b4b} svg .c-warn{fill:#9a5f10} svg .c-gap{fill:#a02b21}
 .nt-col.found{border-color:#f0c2ac;background:#fff8f3} .nt-col.need{border-color:#9ec5e8;background:#f2f8fe} .nt-col.done{border-color:#9bd3b0;background:#f2faf4}
 .boss-sheet.ld .nt-grid{grid-template-columns:1fr 1fr} .boss-sheet.ld .nt-col.done{display:none}
 @media (max-width:900px){.notegrid,.nt-grid{grid-template-columns:1fr}}
+
+/* เส้นทางคนดู */
+.pfn{display:flex;align-items:stretch;gap:6px;margin:6px 0 10px} .ps{flex:1;background:#f6f9fd;border:1.5px solid #dfe5ef;border-radius:12px;padding:10px 12px} .ps .l{display:block;font-size:12px;color:rgb(var(--muted));font-weight:600} .ps b{display:block;font:700 21px "Bai Jamjuree";color:#0b2540} .ps i{display:block;font-style:normal;font-size:12.5px;color:#0b6fa8;font-weight:700} .ps small{display:block;font-size:11.5px;color:rgb(var(--muted))}
+.pa{display:flex;align-items:center;font-size:20px;color:#9ab} .ps.s1{border-color:#3b82c4} .ps.s2{border-color:#8a4fb0} .ps.s3{border-color:#2f9e6b} .ps.s4{border-color:#d97706} .ps.s5{border-color:#15803d}
+.path-tbl td.b{font-weight:700} .path-tbl td.good,.note .good{color:#15803d} .path-tbl td.ok,.note .ok{color:#b45309} .path-tbl td.bad,.note .bad{color:#c2410c} .path-tbl td small{display:block;color:rgb(var(--muted));font-size:11px}
+.pkinds{display:grid;grid-template-columns:repeat(3,1fr);gap:12px} .pk{border:1.5px solid;border-radius:12px;padding:10px 14px;font-size:13px;background:#fff} .pk h4{font:700 15px "Bai Jamjuree";margin:0 0 2px;color:#0b2540} .pk h4 em{font:500 11.5px "Anuphan";color:rgb(var(--muted));margin-left:4px;font-style:normal} .pk p{margin:0 0 6px;color:#33475e} .pk ul{margin:0;padding-left:18px} .pk li{margin:2px 0} .pk li small{color:rgb(var(--muted));font-size:11.5px}
+.pk-m{border-color:#d97706;background:#fff8eb} .pk-w{border-color:#3b82c4;background:#eef5fc} .pk-e{border-color:#8a4fb0;background:#f6f0fb} .pk-b{border-color:#15803d;background:#f0faf3} .pk-n{border-color:#c9d2e0;background:#fafcff} .pk-x{border-color:#c2410c;background:#fff3ee}
+.wk-path{margin-top:8px} .wk-path .brief-head h3{font-size:19px}
+@media (max-width:1000px){.pfn{flex-wrap:wrap}.pa{display:none}.ps{flex:1 1 30%}.pkinds{grid-template-columns:1fr}}

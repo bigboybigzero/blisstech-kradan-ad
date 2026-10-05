@@ -343,10 +343,11 @@ export function analyze(rows, settings = DEFAULT_SETTINGS, clips = [], manual = 
   const plan = buildPlan({ data, layers, productFunnels, adsets, campaigns }, S);
   const brief = buildBrief(campaigns, totals, layers, date);
   const daily = buildDaily(campaigns, data, totals, date);
+  const path = buildPath(ads, products, totals);
   const journey = buildJourney(ads, adsets, productFunnels.map(p => p.product));
   const behaviour = buildBehaviour(ads, adsets);
 
-  return { date, dateEnd, totals, campaigns, adsets, ads, places, layers, products, productFunnels, dupClips, dupAdsets, unresolved, plan, journey, behaviour, brief, daily, rowCount: data.length, _rows: data };
+  return { date, dateEnd, totals, campaigns, adsets, ads, places, layers, products, productFunnels, dupClips, dupAdsets, unresolved, plan, journey, behaviour, brief, daily, path, rowCount: data.length, _rows: data };
 }
 
 // ---------- แผนคอนเทนต์และกลุ่มเป้าหมาย (auto) ----------
@@ -724,6 +725,36 @@ export function buildWeekly(A, data, prevWeek = null, actual = null) {
     trend, bestDay: best, worstDay: worst, layers, prods: boss.prods, need: boss.need, winners, burners, openers,
     lights: { green: daily.groups.green.length, yellow: daily.groups.yellow.length, red: daily.groups.red.length, old: daily.groups.old.length },
     boss, daily: { kpis: daily.kpis, rows: daily.rows.map(r => ({ name: r.name, bud: r.bud, layer: r.layer })) } };
+}
+
+// ---------- เส้นทางคนดู: ยิงไป → คนเห็น → มีส่วนร่วม → ดูถึง 15 วิ → ทัก → ซื้อ ----------
+export const PATH_RULES = { minSpend: 150, cpmGood: 60, cpmOk: 100, engGood: 35, engOk: 20, thruGood: 8, thruOk: 4, msgGood: 0.8, msgOk: 0.3, cpmsgGood: 25, cpmsgOk: 40 };
+function pathStep(o) {
+  const reach = o.reach || 0, eng = o.eng || 0, thru = o.thru || 0, msgs = o.msgs || 0, val = (o.purch || 0) - (o.noval || 0), sp = o.spend || 0;
+  return { ...o, val, cpm: reach ? sp / reach * 1000 : null, cpe: eng ? sp / eng : null, cpt: thru ? sp / thru : null, cpmsg: msgs >= 0.5 ? sp / msgs : null, cpp: val ? sp / val : null,
+    engR: reach ? eng / reach * 100 : 0, thruR: reach ? thru / reach * 100 : 0, msgR: reach ? msgs / reach * 100 : 0, buyR: reach ? val / reach * 100 : 0, m2b: msgs ? val / msgs * 100 : 0, isStatic: (o.vplay || 0) < 100 && reach > 300 };
+}
+export function pathKind(r, R = PATH_RULES) {
+  if (r.msgR >= R.msgGood && r.cpmsg !== null && r.cpmsg <= R.cpmsgGood) return { kind: 'ตัวทัก', cls: 'm', why: 'คนเห็นแล้วทักถูกและเยอะ ใช้เป็นตัวเปิดหาลูกค้า' };
+  if (!r.isStatic && r.thruR >= R.thruGood && r.msgR < 0.5) return { kind: 'ตัวดู', cls: 'w', why: 'คนดูนานแต่ไม่ทัก เหมาะสร้างกลุ่มคนดูไว้ยิงซ้ำ ต้องเพิ่มคำชวนท้ายคลิป' };
+  if (r.engR >= R.engGood && r.msgR < 0.5) return { kind: 'ตัวแชร์/คอมเมนต์', cls: 'e', why: 'คนมีส่วนร่วมสูงแต่ไม่ทัก ดีสำหรับการรับรู้ ไม่ใช่ตัวขาย' };
+  if (r.m2b >= 20 && r.val >= 2) return { kind: 'ตัวปิด', cls: 'b', why: 'คนทักแล้วซื้อสูง ใช้กับคนที่รู้จักเราแล้ว' };
+  if (r.cpm !== null && r.cpm > R.cpmOk * 1.2 && r.msgR < R.msgOk) return { kind: 'แพงทุกขั้น', cls: 'x', why: 'เห็นก็แพง ทักก็น้อย พิจารณาปิดหรือเปลี่ยนกลุ่ม' };
+  return { kind: 'กลาง ๆ', cls: 'n', why: 'ไม่เด่นด้านไหน' };
+}
+export const PATH_KIND_ORDER = ['ตัวทัก', 'ตัวดู', 'ตัวแชร์/คอมเมนต์', 'ตัวปิด', 'กลาง ๆ', 'แพงทุกขั้น'];
+/** ads = รายการโฆษณา (รวมคลิปชื่อเดียวกันข้ามแคมเปญ) · products = ต่อสินค้า (รวมจากแคมเปญ) · totals */
+export function buildPath(ads, products, totals, R = PATH_RULES) {
+  const byClip = new Map();
+  for (const a of ads || []) { const k = a.name; const o = byClip.get(k) || { name: k, product: a.product, stage: a.stage, camps: 0, spend: 0, reach: 0, imp: 0, eng: 0, thru: 0, vplay: 0, msgs: 0, purch: 0, noval: 0, rev: 0 };
+    for (const f of ['spend', 'reach', 'imp', 'eng', 'thru', 'vplay', 'msgs', 'purch', 'noval', 'rev']) o[f] += a[f] || 0; o.camps++; byClip.set(k, o); }
+  const clips = [...byClip.values()].filter(c => c.spend >= R.minSpend).map(c => { const r = pathStep(c); return { ...r, ...pathKind(r, R) }; });
+  const prods = (products || []).filter(p => p.spend > 0 && p.name !== 'ไม่ระบุ').map(pathStep).sort((a, b) => b.spend - a.spend);
+  const total = pathStep({ spend: totals.spend, reach: totals.reach, imp: totals.imp, eng: totals.eng, thru: totals.thru, vplay: totals.vplay, msgs: totals.msgs, purch: totals.purch, noval: totals.noval, rev: totals.rev });
+  const kinds = PATH_KIND_ORDER.map(k => { const d = clips.filter(c => c.kind === k).sort((a, b) => b.spend - a.spend); return d.length ? { kind: k, cls: d[0].cls, why: d[0].why, n: d.length, spend: d.reduce((t, c) => t + c.spend, 0), msgs: d.reduce((t, c) => t + c.msgs, 0), clips: d.slice(0, 5) } : null; }).filter(Boolean);
+  const byMsg = [...clips].sort((a, b) => b.msgR - a.msgR).slice(0, 8), byEng = clips.filter(c => !c.isStatic).sort((a, b) => b.engR - a.engR).slice(0, 8);
+  const bestM = byMsg[0] || null, bestE = clips.filter(c => !c.isStatic && c.msgR < 0.5).sort((a, b) => b.engR - a.engR)[0] || null, stop = clips.filter(c => c.kind === 'แพงทุกขั้น').sort((a, b) => b.spend - a.spend).slice(0, 3);
+  return { rules: R, total, prods, clips, kinds, byMsg, byEng, bestM, bestE, stop };
 }
 
 export function mergePlan(autoPlan, savedPlan) {
